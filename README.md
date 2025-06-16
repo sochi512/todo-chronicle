@@ -1,1 +1,27 @@
-# todo-chronicle
+# ToDo Chronicle
+
+日々のタスク管理を"異世界ファンタジー物語"に変える、生成AI活用タスク管理アプリ。
+
+## 🎯 主な機能
+- タスクの管理を行う。
+- 完了したタスクの内容に応じて物語を自動生成する。（生成AI活用）
+- ゲーミフィケーション（経験値・レベルアップ）
+- 物語のシーズン最終章でイラストを自動生成する。（生成AI活用）
+
+## 🖼️ スクリーンショット
+![タスク管理画面](./docs/screenshot-task.png)
+
+## 💡 技術スタック
+- フロントエンド: Angular 18, Firebase Hosting, TailwindCSS
+- バックエンド: FastAPI, Cloud Run, Firestore, Firebase Authentication
+- AI: Vertex AI (Gemini 2.0 Flash), Replicate (google-imagen3)
+
+## 📊 システム構成図
+![アーキテクチャ図](./docs/architecture.png)
+
+## 🔗 参考リンク
+- [Zenn記事](https://zenn.dev/xxxx)
+- [デモ動画（YouTube）](https://youtube.com/xxxx)
+
+## 📝 ライセンス
+MIT

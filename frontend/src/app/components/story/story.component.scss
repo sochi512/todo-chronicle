@@ -1,0 +1,41 @@
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+
+.highlight-text {
+  background-color: #E3F2FD;
+  color: #1976D2;
+  padding: 0 2px;
+  border-radius: 2px;
+  cursor: help;
+  position: relative;
+}
+
+.tooltip {
+  visibility: hidden;
+  position: absolute;
+  z-index: 1;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: white;
+  text-align: center;
+  padding: 5px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}
+
+.highlight-text:hover .tooltip {
+  visibility: visible;
+} 

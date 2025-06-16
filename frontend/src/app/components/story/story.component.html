@@ -1,0 +1,135 @@
+<div class="bg-white rounded-lg shadow-sm p-3 sm:p-4">
+  <div class="flex justify-between items-center mb-2 sm:mb-3">
+    <h2 class="hidden sm:block text-lg font-medium text-gray-900">ストーリー</h2>
+    <div class="flex space-x-2">
+      <button
+        (click)="switchToCurrentView()"
+        [class.text-blue-500]="currentView === 'current'"
+        [class.text-gray-500]="currentView !== 'current'"
+        class="px-3 py-1 text-base font-medium hover:text-emerald-500"
+      >
+        <span id="currentSeasonTitle">シーズン{{ currentSeason?.season_no }}</span>
+      </button>
+      <button
+        (click)="switchToHistoryView()"
+        [class.text-blue-500]="currentView === 'history'"
+        [class.text-gray-500]="currentView !== 'history'"
+        class="px-3 py-1 text-base font-medium hover:text-emerald-500"
+      >
+        履歴
+      </button>
+    </div>
+  </div>
+
+  <!-- 現在のシーズン表示 -->
+  <div *ngIf="currentView === 'current' && currentSeason" class="space-y-6">
+    <div class="flex items-center justify-between">
+      <h3 class="text-lg font-medium text-gray-900">
+        シーズン{{ currentSeason.season_no }}
+      </h3>
+      <span
+        class="px-2 py-1 text-sm rounded-full"
+        [ngClass]="{
+          'bg-blue-100': currentSeason.current_phase !== 4,
+          'text-blue-800': currentSeason.current_phase !== 4,
+          'bg-green-100': currentSeason.current_phase === 4,
+          'text-green-800': currentSeason.current_phase === 4
+        }"
+      >
+        {{ currentSeason.current_phase === 4 ? '完了' : '進行中' }}
+      </span>
+    </div>
+
+    <div class="space-y-4">
+      <!-- ローディング中のストーリーカード -->
+      <div *ngIf="isLoading && currentSeason?.current_phase !== StoryPhase.KAN" class="bg-white rounded-lg shadow-sm p-6">
+        <div class="flex items-center">
+          <p class="text-gray-600 transition-opacity duration-300">
+            <ng-container [ngSwitch]="loadingStep">
+              <ng-container *ngSwitchCase="1">🔮 タスク変換を実行中…</ng-container>
+              <ng-container *ngSwitchCase="2">📜 ストーリー生成中…</ng-container>
+              <ng-container *ngSwitchCase="3">🧠 洞察を出力中…</ng-container>
+              <ng-container *ngSwitchDefault>🔮 タスク変換を実行中…</ng-container>
+            </ng-container>
+          </p>
+        </div>
+      </div>
+
+      <!-- 実際のストーリーカード -->
+      <div *ngFor="let story of currentSeason.stories || []" class="bg-white rounded-lg shadow-sm p-6">
+        <div>
+          <h3 class="text-lg font-medium text-gray-900">第{{ story.chapter_no }}章: {{ story.title }}</h3>
+          <p class="text-sm text-gray-500 mt-1">{{ story.created_at | date:'medium' }}</p>
+        </div>
+        <p class="mt-4 text-gray-600 whitespace-pre-line" [innerHTML]="formatStoryContent(story)"></p>
+        
+        <!-- 画像表示部分 -->
+        <div *ngIf="currentSeason.current_phase === StoryPhase.KAN && story.phase === StoryPhase.KAN" class="mt-4">
+          <div *ngIf="!story.imageUrl" class="w-full aspect-square bg-gray-100 rounded-lg shadow-md flex items-center justify-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          </div>
+          <img 
+            *ngIf="story.imageUrl" 
+            [src]="story.imageUrl" 
+            [alt]="story.title" 
+            class="w-full aspect-square object-cover rounded-lg shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+            (click)="openImageModal(story.imageUrl)"
+          >
+        </div>
+
+        <div class="mt-4 p-3 bg-blue-50 rounded-md">
+          <p class="text-sm text-blue-700 whitespace-pre-line">
+            <span class="font-medium">洞察:</span> {{ story.insight }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 履歴表示 -->
+  <div *ngIf="currentView === 'history'" class="space-y-4">
+    <div
+      *ngFor="let season of seasons"
+      (click)="selectSeason(season)"
+      class="story-card bg-white border border-gray-200 rounded-lg p-4 cursor-pointer hover:bg-gray-50"
+    >
+      <div class="flex justify-between items-start">
+        <div>
+          <h3 class="text-base font-medium text-gray-900">シーズン{{ season.season_no }}</h3>
+        </div>
+        <span
+          class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+          [ngClass]="{
+            'bg-blue-100 text-blue-800': season.current_phase !== 4,
+            'bg-green-100 text-green-800': season.current_phase === 4
+          }"
+        >
+          {{ season.current_phase === 4 ? '完了' : '進行中' }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 画像拡大表示用モーダル -->
+  <div 
+    *ngIf="selectedImageUrl" 
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+    (click)="closeImageModal()"
+  >
+    <div class="relative max-w-4xl w-full mx-4">
+      <button 
+        class="absolute top-4 right-4 text-white hover:text-gray-300"
+        (click)="closeImageModal()"
+      >
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+      <img 
+        [src]="selectedImageUrl" 
+        class="w-full h-auto rounded-lg shadow-xl"
+        (click)="$event.stopPropagation()"
+      >
+    </div>
+  </div>
+</div> 

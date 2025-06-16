@@ -1,0 +1,20 @@
+.modal {
+  &.active {
+    display: flex;
+  }
+}
+
+// アニメーション関連のスタイル
+:host ::ng-deep {
+  .task-animation {
+    &.void {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    &.active {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+} 

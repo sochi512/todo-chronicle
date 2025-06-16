@@ -1,0 +1,79 @@
+<div class="min-h-screen bg-gray-50">
+  <!-- ローディング表示 -->
+  <div *ngIf="isLoading$ | async" class="min-h-screen flex items-center justify-center">
+    <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+  </div>
+
+  <!-- メインコンテンツ -->
+  <ng-container *ngIf="!(isLoading$ | async)">
+    <!-- ヘッダー -->
+    <header *ngIf="isAuthenticated$ | async" class="bg-white shadow-sm">
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+          <!-- ユーザー情報 -->
+          <div class="flex items-center space-x-3">
+            <!-- ユーザーアイコン -->
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
+              <img *ngIf="(user$ | async)?.photoURL" [src]="(user$ | async)?.photoURL" [alt]="(user$ | async)?.displayName" class="w-full h-full object-cover">
+              <svg *ngIf="!(user$ | async)?.photoURL" class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <!-- ユーザー名とレベル -->
+            <div>
+              <p class="text-base sm:text-xl font-medium text-gray-900">{{ (dashboardData$ | async)?.user?.player_name || (user$ | async)?.displayName || '' }}</p>
+              <div class="flex items-center space-x-2">
+                <p class="text-lg font-medium text-blue-600">Lv.{{ currentSeason?.season_no || 1 }}</p>
+                <!-- 経験値バー（モバイル表示） -->
+                <div class="sm:hidden w-32">
+                  <div class="h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-orange-400 transition-all duration-300" [style.width.%]="expPercentage"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- 経験値バー（デスクトップ表示） -->
+            <div class="hidden sm:flex items-center space-x-4 ml-8">
+              <div class="w-48">
+                <div class="h-4 bg-gray-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-orange-400 transition-all duration-300" [style.width.%]="expPercentage"></div>
+                </div>
+              </div>
+              <!-- 完了済タスク数 -->
+              <div class="flex items-center space-x-2 text-sm text-gray-600">
+                <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                </svg>
+                <span class="text-lg font-medium">{{ completedTasksCount }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- サインアウトボタン -->
+        <button 
+          (click)="signOut()" 
+          class="absolute top-4 right-4 flex items-center space-x-2 text-gray-600 hover:text-red-500 transition-colors"
+        >
+          <!-- デスクトップ表示用 -->
+          <div class="hidden md:flex items-center space-x-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span>ログアウト</span>
+          </div>
+          <!-- モバイル表示用 -->
+          <div class="md:hidden flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </div>
+        </button>
+      </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <router-outlet></router-outlet>
+    </main>
+  </ng-container>
+</div> 

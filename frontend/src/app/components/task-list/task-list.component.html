@@ -1,0 +1,196 @@
+<div class="bg-white rounded-lg shadow-sm p-3 sm:p-4">
+  <div class="flex justify-between items-center mb-2 sm:mb-3">
+    <div class="flex items-center space-x-4">
+      <h2 class="hidden sm:block text-lg font-semibold text-gray-900">タスク</h2>
+      <button
+        (click)="toggleViewMode()"
+        class="flex items-center space-x-2 p-2 text-gray-500 hover:text-blue-500 transition-colors"
+        [class.text-blue-500]="showAllTasks"
+        [title]="showAllTasks ? '未完了' : '完了済'"
+      >
+        <svg *ngIf="showAllTasks" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+        <svg *ngIf="!showAllTasks" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span class="whitespace-nowrap">{{ showAllTasks ? '全て' : '未完了' }}</span>
+      </button>
+    </div>
+    <div class="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0">
+      <button
+        (click)="openAddTaskModal()"
+        class="flex items-center space-x-1 text-gray-600 hover:text-blue-500 transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+        </svg>
+        <span class="whitespace-nowrap">タスクを追加</span>
+      </button>
+      <button
+        (click)="openRecordModal()"
+        class="flex items-center space-x-1 text-gray-600 hover:text-emerald-500 transition-colors"
+        [class.opacity-50]="isUpdatingExperience"
+        [class.cursor-not-allowed]="isUpdatingExperience"
+        [disabled]="isUpdatingExperience"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        <span class="whitespace-nowrap">頁をめくる</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="relative">
+    <!-- タスクリスト -->
+    <div class="space-y-2 sm:space-y-3">
+      <div
+        *ngFor="let task of displayTasks"
+        class="flex items-center justify-between p-3 bg-white border rounded-lg hover:shadow-md transition-shadow"
+      >
+        <div class="flex items-center space-x-4">
+          <input
+            type="checkbox"
+            [checked]="task.status === 1"
+            (change)="toggleTask(task)"
+            class="w-5 h-5 text-blue-500 rounded focus:ring-blue-500"
+            [disabled]="isUpdatingExperience"
+            [class.opacity-50]="isUpdatingExperience"
+            [class.cursor-not-allowed]="isUpdatingExperience"
+          />
+          <div>
+            <h3
+              class="text-sm sm:text-base font-medium text-gray-600"
+              [class.line-through]="task.status === 1"
+              [class.text-gray-500]="task.status === 1"
+            >
+              {{ task.title }}
+            </h3>
+            <div class="flex items-center space-x-2">
+              <p class="text-sm text-gray-500">期限: {{ task.due_date | dateFormat }}</p>
+              <p *ngIf="task.experienced_at" class="text-sm text-emerald-500">経験値獲得済</p>
+            </div>
+          </div>
+        </div>
+        <div class="flex space-x-2">
+          <button
+            (click)="editTask(task)"
+            class="text-gray-500 hover:text-blue-500"
+          >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+          <button
+            (click)="deleteTask(task)"
+            class="text-gray-500 hover:text-red-500"
+          >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ストーリー生成中のメッセージ -->
+    <div *ngIf="isStoryLoading && isMobile" class="fixed bottom-4 left-0 right-0 flex justify-center z-50">
+      <div class="bg-blue-500 text-white rounded-lg px-4 py-2 shadow-lg flex items-center space-x-2">
+        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+        <span>ストーリーを生成中です...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- タスク編集モーダル -->
+<div
+  *ngIf="showModal"
+  class="modal active fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+>
+  <div class="bg-white rounded-lg p-6 w-full max-w-md">
+    <h3 class="text-lg font-semibold mb-4">
+      {{ editingTask ? 'タスクを編集' : 'タスクを追加' }}
+    </h3>
+    <form #taskFormRef="ngForm" (ngSubmit)="saveTask()" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          タスク名 <span class="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          [(ngModel)]="taskForm.title"
+          name="title"
+          required
+          maxlength="30"
+          #titleInput="ngModel"
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          [class.border-red-500]="titleInput.invalid && (titleInput.touched || taskFormRef.submitted)"
+        />
+        <div *ngIf="titleInput.invalid && (titleInput.touched || taskFormRef.submitted)" class="text-red-500 text-sm mt-1">
+          タスク名は必須です
+        </div>
+        <div class="text-sm text-gray-500 mt-1">
+          {{ taskForm.title.length || 0 }}/30文字
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">
+          期限
+        </label>
+        <input
+          type="date"
+          [(ngModel)]="taskForm.dueDate"
+          name="dueDate"
+          max="9999-12-31"
+          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      <div class="flex justify-end space-x-4">
+        <button
+          type="button"
+          (click)="closeModal()"
+          class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+        >
+          キャンセル
+        </button>
+        <button
+          type="submit"
+          class="px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600"
+        >
+          保存
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 削除確認モーダル -->
+<div
+  *ngIf="showDeleteConfirm"
+  class="modal active fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+>
+  <div class="bg-white rounded-lg p-6 w-full max-w-md">
+    <h3 class="text-lg font-semibold mb-4">タスクの削除</h3>
+    <p class="text-gray-600 mb-6">
+      「{{ taskToDelete?.title }}」を削除してもよろしいですか？
+    </p>
+    <div class="flex justify-end space-x-4">
+      <button
+        type="button"
+        (click)="cancelDelete()"
+        class="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+      >
+        キャンセル
+      </button>
+      <button
+        type="button"
+        (click)="confirmDelete()"
+        class="px-4 py-2 text-white bg-red-500 rounded-md hover:bg-red-600"
+      >
+        削除
+      </button>
+    </div>
+  </div>
+</div> 

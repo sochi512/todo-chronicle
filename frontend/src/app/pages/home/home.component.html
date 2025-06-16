@@ -1,0 +1,73 @@
+<!-- タブ（モバイルのみ表示） -->
+<div class="flex space-x-8 border-b border-gray-200 mb-4 lg:hidden" *ngIf="dashboardData">
+  <button 
+    [class.tab-active]="currentTab === 'tasks'"
+    [class.text-gray-500]="currentTab !== 'tasks'"
+    class="px-1 py-2 text-sm font-medium"
+    (click)="switchTab('tasks')"
+  >
+    タスク
+  </button>
+  <button 
+    [class.tab-active]="currentTab === 'stories'"
+    [class.text-gray-500]="currentTab !== 'stories'"
+    class="px-1 py-2 text-sm font-medium"
+    (click)="switchTab('stories')"
+  >
+    ストーリー
+  </button>
+</div>
+
+<!-- デスクトップ用2カラムレイアウト -->
+<div class="hidden lg:grid lg:grid-cols-2 lg:gap-8" *ngIf="dashboardData">
+  <!-- タスク管理 -->
+  <div class="mb-8 lg:mb-0">
+    <app-task-list 
+      [tasks]="dashboardData.tasks || []" 
+      (taskUpdated)="onTaskUpdated()"
+      (seasonSelected)="onSeasonSelected($event)"
+      (storyLoading)="onStoryLoading($event)"
+      [isEnabled]="!!dashboardData"
+      [isMobile]="false"
+      [isStoryLoading]="isStoryLoading"
+    ></app-task-list>
+  </div>
+
+  <!-- ストーリー -->
+  <div>
+    <app-story 
+      [seasons]="dashboardData.seasons || []"
+      [selectedSeasonId]="selectedSeasonId"
+      [isEnabled]="!!dashboardData"
+      [isLoading]="isStoryLoading"
+      [isMobile]="false"
+    ></app-story>
+  </div>
+</div>
+
+<!-- モバイル用コンテンツ -->
+<div class="lg:hidden mt-2" *ngIf="dashboardData">
+  <!-- タスクタブのコンテンツ -->
+  <div *ngIf="currentTab === 'tasks'">
+    <app-task-list 
+      [tasks]="dashboardData.tasks || []" 
+      (taskUpdated)="onTaskUpdated()"
+      (seasonSelected)="onSeasonSelected($event)"
+      (storyLoading)="onStoryLoading($event)"
+      [isEnabled]="!!dashboardData"
+      [isMobile]="true"
+      [isStoryLoading]="isStoryLoading"
+    ></app-task-list>
+  </div>
+
+  <!-- ストーリータブのコンテンツ -->
+  <div *ngIf="currentTab === 'stories'">
+    <app-story 
+      [seasons]="dashboardData.seasons || []"
+      [selectedSeasonId]="selectedSeasonId"
+      [isEnabled]="!!dashboardData"
+      [isLoading]="isStoryLoading"
+      [isMobile]="true"
+    ></app-story>
+  </div>
+</div> 

@@ -1,0 +1,39 @@
+# ビルドステージ
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+# 必要なパッケージをインストール
+COPY requirements.prod.txt .
+RUN pip install --no-cache-dir -r requirements.prod.txt
+
+# 本番環境用のステージ
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# ビルドステージから必要なファイルをコピー
+COPY --from=builder /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/site-packages/
+
+# アプリケーションコードをコピー
+COPY src/ /app/src/
+COPY requirements.prod.txt /app/
+
+# 非rootユーザーの作成
+RUN useradd -m appuser && \
+    chown -R appuser:appuser /app
+
+USER appuser
+
+# 環境変数の設定
+ENV PYTHONPATH=/app
+ENV PORT=8080
+ENV ENVIRONMENT=production
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/service-account.json
+
+# ヘルスチェックエンドポイントの追加
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
+
+# アプリケーションの起動
+CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
