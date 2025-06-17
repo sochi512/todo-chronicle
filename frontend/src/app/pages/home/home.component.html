@@ -11,10 +11,11 @@
   <button 
     [class.tab-active]="currentTab === 'stories'"
     [class.text-gray-500]="currentTab !== 'stories'"
-    class="px-1 py-2 text-sm font-medium"
+    class="px-1 py-2 text-sm font-medium relative"
     (click)="switchTab('stories')"
   >
     ストーリー
+    <span *ngIf="hasNewStory" class="absolute -top-1 -right-1 bg-emerald-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">!</span>
   </button>
 </div>
 

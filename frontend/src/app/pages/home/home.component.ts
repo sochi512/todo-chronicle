@@ -46,6 +46,9 @@ export class HomeComponent implements OnInit, OnDestroy {
   /** コンポーネントの破棄時に使用するSubject */
   private destroy$ = new Subject<void>();
 
+  /** 新しいストーリーがあるかどうか */
+  hasNewStory = false;
+
   constructor(
     private dashboardService: DashboardService,
     private authService: AuthService
@@ -134,6 +137,9 @@ export class HomeComponent implements OnInit, OnDestroy {
       return;
     }
     this.currentTab = tab;
+    if (tab === 'stories') {
+      this.hasNewStory = false;
+    }
   }
 
   /**
@@ -195,5 +201,8 @@ export class HomeComponent implements OnInit, OnDestroy {
    */
   onStoryLoading(isLoading: boolean) {
     this.isStoryLoading = isLoading;
+    if (!isLoading) {
+      this.hasNewStory = true;
+    }
   }
 } 
