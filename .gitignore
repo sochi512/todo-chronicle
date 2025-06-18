@@ -26,6 +26,7 @@ environment.ts
 environment.prod.ts
 frontend/docker-compose.yml
 frontend/node
+.firebase/
 
 # 仮想環境
 venv/
