@@ -38,7 +38,7 @@ class ExperienceCalculator:
             already_done (int): 当日既に完了したタスク数
             current_phase (StoryPhase): 現在のストーリーフェーズ
             total_exp (int): 現在の総経験値
-            
+
         Returns:
             Tuple[int, bool]: (獲得経験値, 次のフェーズに移行できるかどうか)
             

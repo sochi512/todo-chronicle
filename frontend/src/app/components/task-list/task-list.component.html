@@ -4,7 +4,7 @@
       <h2 class="hidden sm:block text-lg font-semibold text-gray-900">タスク</h2>
         <button
           (click)="toggleViewMode()"
-        class="flex items-center space-x-2 p-2 text-gray-500 hover:text-blue-500 transition-colors"
+        class="flex items-center space-x-2 p-2 text-gray-500 sm:hover:text-blue-500 transition-colors focus:outline-none active:text-gray-500"
           [class.text-blue-500]="showAllTasks"
           [title]="showAllTasks ? '未完了' : '完了済'"
         >
@@ -20,7 +20,7 @@
     <div class="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0">
       <button
         (click)="openAddTaskModal()"
-        class="flex items-center space-x-1 text-gray-600 hover:text-blue-500 transition-colors"
+        class="flex items-center space-x-1 text-gray-600 sm:hover:text-blue-500 transition-colors focus:outline-none active:text-gray-600"
         [class.opacity-50]="showModal"
         [class.cursor-not-allowed]="showModal"
         [disabled]="showModal"
@@ -32,7 +32,7 @@
       </button>
       <button
         (click)="openRecordModal()"
-        class="flex items-center space-x-1 text-gray-600 hover:text-emerald-500 transition-colors"
+        class="flex items-center space-x-1 text-gray-600 sm:hover:text-emerald-500 transition-colors focus:outline-none active:text-gray-600"
         [class.opacity-50]="isUpdatingExperience"
         [class.cursor-not-allowed]="isUpdatingExperience"
         [disabled]="isUpdatingExperience"
@@ -132,14 +132,19 @@
   class="modal active fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
 >
   <div class="bg-white rounded-lg p-6 w-full max-w-md">
-    <h3 class="text-lg font-semibold mb-4">
+    <h3 class="text-base sm:text-lg font-semibold mb-2 sm:mb-4 hidden sm:block">
       {{ editingTask ? 'タスクを編集' : 'タスクを追加' }}
     </h3>
     <form #taskFormRef="ngForm" (ngSubmit)="saveTask()" class="space-y-4">
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">
-          タスク名 <span class="text-red-500">*</span>
-        </label>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-sm font-medium text-gray-700">
+            タスク名 <span class="text-red-500">*</span>
+          </label>
+          <span class="text-sm text-gray-500">
+            {{ taskForm.title.length || 0 }}/30文字
+          </span>
+        </div>
         <input
           type="text"
           [(ngModel)]="taskForm.title"
@@ -153,30 +158,23 @@
         <div *ngIf="titleInput.invalid && (titleInput.touched || taskFormRef.submitted)" class="text-red-500 text-sm mt-1">
           タスク名は必須です
         </div>
-        <div class="text-sm text-gray-500 mt-1">
-          {{ taskForm.title.length || 0 }}/30文字
-        </div>
       </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">
-          期限
-        </label>
+      <div class="flex items-center mb-2">
+        <label class="text-sm font-medium text-gray-700 mr-2 whitespace-nowrap">期限</label>
         <input
           type="date"
           [(ngModel)]="taskForm.dueDate"
           name="dueDate"
           max="9999-12-31"
-          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="flex-1 px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
       </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">
-          カテゴリー
-        </label>
+      <div class="flex items-center mb-2">
+        <label class="text-sm font-medium text-gray-700 mr-2 whitespace-nowrap">カテゴリー</label>
         <select
           [(ngModel)]="taskForm.category"
           name="category"
-          class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="flex-1 px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         >
           <option [ngValue]="undefined">🤖AI判定</option>
           <option [ngValue]="1">💼 仕事</option>
