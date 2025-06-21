@@ -121,13 +121,13 @@ class ImageGenerator:
             - アスペクト比は1:1（正方形）で生成されます
         """
         # 先にダミー画像（テスト用画像）があればそれを返す
-        dummy_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../tests/test_images/real_test_image.png'))
-        if os.path.exists(dummy_path):
-            with open(dummy_path, "rb") as f:
-                image_data = f.read()
-            print(f"ダミー画像を返します: {dummy_path}")
-            return {"image_data": image_data}
-        return
+        # dummy_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../tests/test_images/real_test_image.png'))
+        # if os.path.exists(dummy_path):
+        #     with open(dummy_path, "rb") as f:
+        #         image_data = f.read()
+        #     print(f"ダミー画像を返します: {dummy_path}")
+        #     return {"image_data": image_data}
+        # return
 
         # ここから下は本番用のReplicate 
         max_retries = int(os.getenv("IMAGE_GEN_MAX_RETRIES", 3))
