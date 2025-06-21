@@ -42,6 +42,10 @@
       [isEnabled]="!!dashboardData"
       [isLoading]="isStoryLoading"
       [isMobile]="false"
+      [currentView]="storyViewState"
+      [selectedStorySeasonId]="selectedStorySeasonId"
+      (viewChanged)="onStoryViewChanged($event)"
+      (seasonSelected)="onStorySeasonSelected($event)"
     ></app-story>
   </div>
 </div>
@@ -69,6 +73,10 @@
       [isEnabled]="!!dashboardData"
       [isLoading]="isStoryLoading"
       [isMobile]="true"
+      [currentView]="storyViewState"
+      [selectedStorySeasonId]="selectedStorySeasonId"
+      (viewChanged)="onStoryViewChanged($event)"
+      (seasonSelected)="onStorySeasonSelected($event)"
     ></app-story>
   </div>
 </div> 

@@ -1,3 +1,33 @@
+"""
+ToDo Chronicle API - メインアプリケーションファイル
+
+このモジュールは、ToDo ChronicleアプリケーションのメインAPIサーバーを提供します。
+異世界ファンタジーテーマのタスク管理アプリケーションで、ユーザーのタスク完了に応じて
+ストーリーが進行し、行動分析機能も提供します。
+
+主要機能:
+- ユーザー管理（作成、取得、ダッシュボード）
+- タスク管理（CRUD操作、ステータス更新）
+- ストーリー生成と進行
+- 行動分析（Vertex AI Gemini使用）
+- 画像生成とストレージ管理
+- レート制限
+- 認証・認可
+
+技術スタック:
+- FastAPI: Webフレームワーク
+- Firestore: データベース
+- Google Cloud Storage: 画像ストレージ
+- Vertex AI: AI機能（Gemini）
+- Firebase Auth: 認証
+
+環境変数:
+- ENVIRONMENT: 実行環境（development/production）
+- GOOGLE_APPLICATION_CREDENTIALS: GCP認証情報ファイルパス
+- ALLOWED_ORIGINS: CORS許可オリジン
+- GCS_BUCKET_NAME: Google Cloud Storageバケット名
+"""
+
 from fastapi import FastAPI, HTTPException, Query, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, List, Any, Dict, Tuple
@@ -42,8 +72,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Firebaseの初期化
 def initialize_firebase():
+    """
+    Firebase/Firestoreの初期化を行う
+    
+    Google Cloud認証情報を使用してFirestoreクライアントを初期化し、
+    開発環境では接続テストも実行します。
+    
+    Returns:
+        Tuple[Optional[firestore.Client], Optional[service_account.Credentials]]: 
+            Firestoreクライアントと認証情報のタプル。
+            初期化に失敗した場合は(None, None)を返す。
+            
+    Raises:
+        Exception: 認証情報ファイルの読み込みやFirestore接続に失敗した場合
+    """
     try:
         # GOOGLE_APPLICATION_CREDENTIALSから認証情報を取得
         cred = service_account.Credentials.from_service_account_file(
@@ -77,6 +120,7 @@ try:
             version="1.0.0"
         )
     else:
+        # 各サービスの初期化
         story_generator = StoryGenerator(db)
         exp_calculator = ExperienceCalculator()
         task_service = TaskService(db)
@@ -121,8 +165,22 @@ app.add_middleware(
     expose_headers=["*"]
 )
 
-# レート制限の依存関係
 def rate_limit(endpoint: str):
+    """
+    レート制限の依存関係を生成する
+    
+    指定されたエンドポイントに対してレート制限を適用します。
+    OPTIONSリクエストは制限をスキップし、制限を超過した場合は429エラーを返します。
+    
+    Args:
+        endpoint (str): レート制限を適用するエンドポイント名
+        
+    Returns:
+        function: FastAPIの依存関係関数
+        
+    Raises:
+        HTTPException: レート制限を超過した場合（429エラー）
+    """
     async def dependency(request: Request):
         # OPTIONSリクエストはレート制限をスキップ
         if request.method == "OPTIONS":
@@ -144,6 +202,19 @@ def rate_limit(endpoint: str):
 # グローバルエラーハンドラー
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    """
+    グローバル例外ハンドラー
+    
+    アプリケーション全体で発生した未処理の例外をキャッチし、
+    適切なエラーレスポンスを返します。開発環境では詳細なエラー情報も含めます。
+    
+    Args:
+        request (Request): FastAPIリクエストオブジェクト
+        exc (Exception): 発生した例外
+        
+    Returns:
+        JSONResponse: エラー情報を含むJSONレスポンス
+    """
     logger.error(f"Global error: {exc}")
     if is_development:
         return JSONResponse(
@@ -159,30 +230,82 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"message": "Internal server error"}
     )
 
-# ヘルスチェックエンドポイント
 @app.get("/health")
 async def health_check():
+    """
+    ヘルスチェックエンドポイント
+    
+    アプリケーションの稼働状況を確認するためのエンドポイントです。
+    現在の環境情報とタイムスタンプを返します。
+    
+    Returns:
+        Dict: ヘルスチェック結果
+            {
+                "status": "healthy",
+                "environment": str,  # 実行環境
+                "timestamp": str     # ISO形式のタイムスタンプ
+            }
+    """
     return {
         "status": "healthy",
         "environment": environment,
         "timestamp": datetime.now().isoformat()
     }
 
-# エンドポイント
 @app.get("/")
 def root():
+    """
+    ルートエンドポイント
+    
+    アプリケーションの基本情報を返します。
+    
+    Returns:
+        Dict: アプリケーション名とメッセージ
+    """
     return {"message": "ToDo Chronicle API is running"}
 
-# エラーハンドリングの統一化
 def handle_error(e: Exception, error_message: str):
+    """
+    エラーハンドリングの統一化関数
+    
+    各エンドポイントで発生した例外を統一的な形式で処理します。
+    HTTPExceptionの場合はそのまま再送出し、それ以外は500エラーとして処理します。
+    
+    Args:
+        e (Exception): 発生した例外
+        error_message (str): エラーメッセージ
+        
+    Raises:
+        HTTPException: 適切なHTTPステータスコードとエラーメッセージ
+    """
     logger.error(f"{error_message}: {str(e)}")
     if isinstance(e, HTTPException):
         raise e
     raise HTTPException(status_code=500, detail=str(e))
 
-# ユーザー作成エンドポイント
 @app.post("/users", dependencies=[Depends(rate_limit("user_create"))])
 async def create_user(user: User, user_id: str = Depends(verify_token)):
+    """
+    ユーザー作成エンドポイント
+    
+    認証されたユーザーIDを使用して新しいユーザーを作成し、
+    初期シーズンも同時に作成します。
+    
+    Args:
+        user (User): 作成するユーザー情報
+        user_id (str): 認証から取得したユーザーID
+        
+    Returns:
+        Dict: 作成されたユーザー情報と初期シーズン情報
+            {
+                "user": Dict,      # ユーザー情報（ID除外）
+                "tasks": List,     # 空のタスクリスト
+                "seasons": List    # 初期シーズン情報
+            }
+            
+    Raises:
+        HTTPException: ユーザー作成に失敗した場合（500エラー）
+    """
     try:
         logger.info(f"ユーザーID: {user_id}")
         # 認証されたユーザーIDを使用してユーザーを作成
@@ -222,9 +345,22 @@ async def create_user(user: User, user_id: str = Depends(verify_token)):
     except Exception as e:
         handle_error(e, "ユーザー作成エラー")
 
-# ユーザー取得エンドポイント
 @app.get("/users/me", dependencies=[Depends(rate_limit("GET_user"))])
 async def get_user(user_id: str = Depends(verify_token)):
+    """
+    ユーザー取得エンドポイント
+    
+    認証されたユーザーの情報を取得します。
+    
+    Args:
+        user_id (str): 認証から取得したユーザーID
+        
+    Returns:
+        Dict: ユーザー情報
+        
+    Raises:
+        HTTPException: ユーザーが見つからない場合（404エラー）
+    """
     try:
         logger.info(f"/users/me: {user_id}")
         user_ref = db.collection('users').document(user_id)
@@ -237,9 +373,27 @@ async def get_user(user_id: str = Depends(verify_token)):
     except Exception as e:
         handle_error(e, "ユーザー取得エラー")
 
-# ダッシュボード取得エンドポイント
 @app.get("/users/me/dashboard", dependencies=[Depends(rate_limit("GET_dashboard"))])
 async def get_dashboard(user_id: str = Depends(verify_token)):
+    """
+    ダッシュボード取得エンドポイント
+    
+    ユーザーのダッシュボード情報（ユーザー情報、タスク一覧、シーズン一覧）を取得します。
+    
+    Args:
+        user_id (str): 認証から取得したユーザーID
+        
+    Returns:
+        Dict: ダッシュボード情報
+            {
+                "user": Dict,      # ユーザー情報
+                "tasks": List,     # タスク一覧
+                "seasons": List    # シーズン一覧（現在のシーズンにはストーリーも含む）
+            }
+            
+    Raises:
+        HTTPException: ユーザーが見つからない場合（404エラー）
+    """
     try:
         logger.info(f"/users/me/dashboard: {user_id}")
         user_ref = db.collection('users').document(user_id)
@@ -265,9 +419,19 @@ async def get_dashboard(user_id: str = Depends(verify_token)):
     except Exception as e:
         handle_error(e, "ダッシュボード取得エラー")
 
-# タスク一覧取得エンドポイント
 @app.get("/users/me/tasks", dependencies=[Depends(rate_limit("GET_tasks"))])
 async def get_tasks(user_id: str = Depends(verify_token)):
+    """
+    タスク一覧取得エンドポイント
+    
+    ユーザーの全タスク一覧を取得します。
+    
+    Args:
+        user_id (str): 認証から取得したユーザーID
+        
+    Returns:
+        List[Dict]: タスク一覧（各タスクはTaskモデルの形式）
+    """
     try:
         logger.debug(f"タスク一覧取得: {user_id}")
         tasks = task_service.get_tasks(user_id)
@@ -276,30 +440,71 @@ async def get_tasks(user_id: str = Depends(verify_token)):
     except Exception as e:
         handle_error(e, "タスク一覧取得エラー")
 
-# タスク作成エンドポイント
 @app.post("/users/me/tasks", dependencies=[Depends(rate_limit("task_create"))])
 async def create_task(task: Task, user_id: str = Depends(verify_token)):
+    """
+    タスク作成エンドポイント
+    
+    新しいタスクを作成します。カテゴリが未指定の場合は、
+    既存タスクのタイトルから自動的にカテゴリを推定します。
+    
+    Args:
+        task (Task): 作成するタスク情報
+        user_id (str): 認証から取得したユーザーID
+        
+    Returns:
+        Dict: 作成されたタスク情報
+        
+    Raises:
+        HTTPException: タスク作成に失敗した場合（500エラー）
+    """
     try:
         logger.info(f"タスク作成: {user_id}")
-        created_task = task_service.create_task(task, user_id)
+        created_task = await task_service.create_task(task, user_id)
         return custom_json_response(created_task.model_dump())
     except Exception as e:
         handle_error(e, "タスク作成エラー")
 
-# タスク更新エンドポイント
 @app.put("/users/me/tasks/{task_id}", dependencies=[Depends(rate_limit("task_update"))])
 async def update_task(task_id: str, task: Task, user_id: str = Depends(verify_token)):
+    """
+    タスク更新エンドポイント
+    
+    指定されたタスクの情報を更新します。
+    
+    Args:
+        task_id (str): 更新するタスクのID
+        task (Task): 更新するタスク情報
+        user_id (str): 認証から取得したユーザーID
+        
+    Returns:
+        Dict: 更新されたタスク情報
+        
+    Raises:
+        HTTPException: タスクが見つからない場合（404エラー）または更新に失敗した場合（500エラー）
+    """
     try:
         logger.info(f"タスク更新: task_id={task_id}, user_id={user_id}")
         task.id = task_id
-        result = task_service.update_task(task, user_id)
+        result = await task_service.update_task(task, user_id)
         return result
     except Exception as e:
         handle_error(e, "タスク更新エラー")
 
-# タスク削除エンドポイント
 @app.delete("/users/me/tasks/{task_id}", dependencies=[Depends(rate_limit("task_delete"))])
 async def delete_task(task_id: str, user_id: str = Depends(verify_token)):
+    """
+    タスク削除エンドポイント
+    
+    指定されたタスクを削除します。
+    
+    Args:
+        task_id (str): 削除するタスクのID
+        user_id (str): 認証から取得したユーザーID
+        
+    Raises:
+        HTTPException: タスクが見つからない場合（404エラー）または削除に失敗した場合（500エラー）
+    """
     try:
         logger.info(f"タスク削除リクエスト: task_id={task_id}, user_id={user_id}")
         task_service.delete_task(task_id, user_id)
@@ -307,9 +512,27 @@ async def delete_task(task_id: str, user_id: str = Depends(verify_token)):
     except Exception as e:
         handle_error(e, "タスク削除エラー")
 
-# タスクステータス更新エンドポイント
 @app.put("/users/me/tasks/{task_id}/status", dependencies=[Depends(rate_limit("task_status_update"))])
 async def update_task_status(task_id: str, status_update: dict, user_id: str = Depends(verify_token)):
+    """
+    タスクステータス更新エンドポイント
+    
+    指定されたタスクのステータスを更新します。
+    完了ステータスに変更した場合は、経験値計算とストーリー進行のトリガーとなります。
+    
+    Args:
+        task_id (str): 更新するタスクのID
+        status_update (dict): 更新するステータス情報 {"status": TaskStatus}
+        user_id (str): 認証から取得したユーザーID
+        
+    Returns:
+        Dict: 更新されたタスク情報
+        
+    Raises:
+        HTTPException: ステータスが指定されていない場合（400エラー）、
+                      タスクが見つからない場合（404エラー）、
+                      更新に失敗した場合（500エラー）
+    """
     try:
         status = status_update.get('status')
         if status is None:
@@ -321,18 +544,58 @@ async def update_task_status(task_id: str, status_update: dict, user_id: str = D
     except Exception as e:
         handle_error(e, "タスクステータス更新エラー")
 
-# ユーザー経験値更新エンドポイント
 @app.put("/users/me/experience", dependencies=[Depends(rate_limit("exp_update"))])
 async def update_user_experience(user_id: str = Depends(verify_token)):
+    """
+    ユーザー経験値更新エンドポイント
+    
+    完了したタスクに基づいて経験値を計算し、ストーリーを進行させます。
+    必要に応じて行動分析も実行されます。
+    
+    Args:
+        user_id (str): 認証から取得したユーザーID
+        
+    Returns:
+        Dict: 更新結果
+            {
+                "user": Dict,           # 更新されたユーザー情報
+                "earned_exp": int,      # 獲得経験値
+                "season": Dict,         # 更新されたシーズン情報
+                "story": Dict,          # 生成されたストーリー情報
+                "new_season": Dict      # 新シーズン情報（作成された場合）
+            }
+            
+    Raises:
+        HTTPException: ユーザーまたはシーズンが見つからない場合（404エラー）、
+                      更新に失敗した場合（500エラー）
+    """
     try:
         result = await season_service.progress_story(user_id)
         return custom_json_response(result)
     except Exception as e:
         handle_error(e, "経験値更新エラー")
 
-# シーズンのストーリー一覧取得エンドポイント
 @app.get("/users/me/seasons/{season_id}/stories")
 async def get_season_stories(user_id: str = Depends(verify_token), season_id: str = None):
+    """
+    シーズンのストーリー一覧取得エンドポイント
+    
+    指定されたシーズンの全ストーリーを取得します。
+    ストーリーは章番号の降順でソートされます。
+    
+    Args:
+        user_id (str): 認証から取得したユーザーID
+        season_id (str): 取得するシーズンのID
+        
+    Returns:
+        Dict: ストーリー一覧
+            {
+                "stories": List[Dict]  # ストーリー一覧（章番号降順）
+            }
+            
+    Raises:
+        HTTPException: ユーザーまたはシーズンが見つからない場合（404エラー）
+    """
     try:
         user_ref = db.collection('users').document(user_id)
         user = user_ref.get()
@@ -354,6 +617,27 @@ async def get_season_stories(user_id: str = Depends(verify_token), season_id: st
 
 @app.get("/users/me/seasons/{season_id}/story-image-url")
 async def get_story_image_url(season_id: str, user_id: str = Depends(verify_token)):
+    """
+    ストーリー画像URL取得エンドポイント
+    
+    指定されたシーズンのストーリー画像の署名付きURLを取得します。
+    URLは5分間有効です。
+    
+    Args:
+        season_id (str): シーズンID
+        user_id (str): 認証から取得したユーザーID
+        
+    Returns:
+        Dict: 画像URL
+            {
+                "url": str  # 署名付きURL
+            }
+            
+    Raises:
+        HTTPException: シーズンが見つからない場合（404エラー）、
+                      画像ファイル名が未設定の場合（404エラー）、
+                      URL生成に失敗した場合（500エラー）
+    """
     try:
         # Firestoreからファイル名を取得
         user_ref = db.collection('users').document(user_id)
@@ -374,4 +658,5 @@ async def get_story_image_url(season_id: str, user_id: str = Depends(verify_toke
     except Exception as e:
         logger.error(f"ストーリー画像URL取得エラー: {str(e)}")
         handle_error(e, "ストーリー画像URL取得エラー")
+
 

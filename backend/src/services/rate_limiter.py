@@ -7,24 +7,82 @@ import logging
 logger = logging.getLogger(__name__)
 
 class RateLimiter:
+    """
+    APIレート制限を管理するサービス
+    
+    このクラスは、クライアントのIPアドレスベースでAPIエンドポイントへの
+    アクセス頻度を制限し、過度なリクエストを防ぎます。
+    
+    機能:
+    - エンドポイント別のレート制限設定
+    - 時間枠ベースのリクエストカウント
+    - 過度なリクエストに対する一時的なブロック
+    - 環境変数による設定のカスタマイズ
+    
+    Attributes:
+        requests: クライアントIP別のリクエスト履歴（タイムスタンプのリスト）
+        blocked_ips: ブロック中のIPアドレスとブロック終了時刻
+        window_size: レート制限の時間枠（秒）
+        block_duration: ブロック期間（秒）
+        limits: エンドポイント別のレート制限設定
+    """
+
     def __init__(self):
+        """
+        RateLimiterの初期化
+        
+        環境変数からレート制限の設定を読み込み、各エンドポイントの
+        制限値を設定します。
+        
+        Environment Variables:
+            RATE_LIMIT_WINDOW_SIZE: レート制限の時間枠（秒）
+            RATE_LIMIT_BLOCK_DURATION: ブロック期間（秒）
+            RATE_LIMIT_USER_CREATE: ユーザー作成の制限
+            RATE_LIMIT_TASK_CREATE: タスク作成の制限
+            RATE_LIMIT_TASK_UPDATE: タスク更新の制限
+            RATE_LIMIT_TASK_DELETE: タスク削除の制限
+            RATE_LIMIT_EXP_UPDATE: 経験値更新の制限
+            RATE_LIMIT_READ: 参照系エンドポイントの制限
+        """
         self.requests = defaultdict(list)
         self.blocked_ips = defaultdict(float)
-        self.window_size = int(os.getenv("RATE_LIMIT_WINDOW_SIZE", "60"))
-        self.block_duration = int(os.getenv("RATE_LIMIT_BLOCK_DURATION", "300"))
+        self.window_size = int(os.getenv("RATE_LIMIT_WINDOW_SIZE"))
+        self.block_duration = int(os.getenv("RATE_LIMIT_BLOCK_DURATION"))
         self.limits = {
             # 更新系エンドポイント
-            "user_create": int(os.getenv("RATE_LIMIT_USER_CREATE", "3")),
-            "task_create": int(os.getenv("RATE_LIMIT_TASK_CREATE", "10")),
-            "task_update": int(os.getenv("RATE_LIMIT_TASK_UPDATE", "60")),
-            "task_delete": int(os.getenv("RATE_LIMIT_TASK_DELETE", "60")),  # タスク削除用の制限を追加
-            "exp_update": int(os.getenv("RATE_LIMIT_EXP_UPDATE", "10")),
+            "user_create": int(os.getenv("RATE_LIMIT_USER_CREATE")),
+            "task_create": int(os.getenv("RATE_LIMIT_TASK_CREATE")),
+            "task_update": int(os.getenv("RATE_LIMIT_TASK_UPDATE")),
+            "task_delete": int(os.getenv("RATE_LIMIT_TASK_DELETE")),  # タスク削除用の制限を追加
+            "exp_update": int(os.getenv("RATE_LIMIT_EXP_UPDATE")),
             
             # 参照系エンドポイント（共通設定）
-            "read": int(os.getenv("RATE_LIMIT_READ", "30")),  # 1分間に30回まで
+            "read": int(os.getenv("RATE_LIMIT_READ")),  # 1分間に30回まで
         }
 
     def check_limit(self, key: str, endpoint: str) -> bool:
+        """
+        レート制限をチェックし、必要に応じてブロックを実行する
+        
+        指定されたキー（通常はIPアドレス）とエンドポイントに対して
+        レート制限をチェックします。制限を超過した場合は適切な
+        エラーレスポンスを返します。
+        
+        Args:
+            key (str): クライアントの識別子（通常はIPアドレス）
+            endpoint (str): アクセス対象のエンドポイント名
+            
+        Returns:
+            bool: レート制限内の場合はFalse、制限超過の場合はTrue
+            
+        Raises:
+            HTTPException: レート制限を超過した場合（429エラー）
+            
+        Note:
+            - 参照系エンドポイント（GET_で始まる）は共通の制限を適用
+            - 1分間に60回以上のリクエストがあると一時的なブロックが実行される
+            - ブロック期間中は429エラーが返される
+        """
         now = time.time()
         
         # デバッグログの追加
@@ -81,4 +139,14 @@ class RateLimiter:
         return False
 
     def get_limit(self, endpoint: str) -> int:
+        """
+        指定されたエンドポイントのレート制限値を取得する
+        
+        Args:
+            endpoint (str): エンドポイント名
+            
+        Returns:
+            int: エンドポイントのレート制限値（設定されていない場合は0）
+            
+        """
         return self.limits.get(endpoint, 0) 

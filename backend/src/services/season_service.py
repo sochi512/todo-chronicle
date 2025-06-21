@@ -113,7 +113,6 @@ class SeasonService:
             story (Story): ストーリー情報
         """
         try:
-            print(f"story: {story}")
             # 画像生成
             image_result = await self.image_generator.generate_story_image(story.content)
             # GCSに画像を保存
@@ -167,14 +166,19 @@ class SeasonService:
             
         # 完了したタスクを取得
         completed_tasks = self.task_service.get_completed_tasks(user_id)
-        print(f"completed_tasks!")
+        logger.debug(f"完了したタスク数: {len(completed_tasks) if completed_tasks else 0}")
         # 当日完了したタスクを取得
         already_done = self.task_service.count_already_done_tasks(user_id)
-        print(f"already_done: {already_done}")
+        logger.debug(f"当日既に完了したタスク数: {already_done}")
+
+        # 完了したタスクのseason_idを更新（experienced_atはまだ更新しない）
+        if completed_tasks:  # 完了したタスクが存在する場合のみ更新
+            self.task_service.update_tasks_season_id(completed_tasks, user_id, current_season.id)
+        
         # 経験値を計算して加算
         earned_exp, is_final_chapter = self.exp_calculator.calculate_experience(len(completed_tasks), already_done, current_season.current_phase, current_season.total_exp)
-        print(f"earned_exp: {earned_exp}")
-        print(f"is_final_chapter: {is_final_chapter}")
+        logger.debug(f"獲得経験値: {earned_exp}")
+        logger.debug(f"最終章判定: {is_final_chapter}")
         
         # 獲得経験値が0の場合はストーリーを生成せずに終了
         if earned_exp == 0:
@@ -186,10 +190,11 @@ class SeasonService:
             }
             
         current_season.total_exp = int(current_season.total_exp + earned_exp)
-        print(f"total_exp: {current_season.total_exp}")
+        logger.debug(f"総経験値: {current_season.total_exp}")
         # フェーズを更新
         current_season.current_phase = self.exp_calculator.get_phase(current_season.total_exp)
-        print(f"current_phase: {current_season.current_phase}")
+        logger.debug(f"現在のフェーズ: {current_season.current_phase}")
+        
         # 物語を生成
         story = await self.story_service.generate_story(user, current_season, is_final_chapter)
 
@@ -206,17 +211,16 @@ class SeasonService:
         if is_final_chapter and current_season.current_phase == StoryPhase.KETSU:
             # awaitを外して非同期実行
             asyncio.create_task(self._generate_and_save_story_image(user_id, current_season, story))
-            print(f"_generate_and_save_story_image")
+
+        # 完了済タスクのexperienced_atを更新（行動分析後に実行）
+        if completed_tasks:
+            self.task_service.update_tasks_to_experienced(completed_tasks, user_id)
 
         # シーズンが完結したら新シーズンを作成し、ユーザー情報を更新
         new_season = None
         if current_season.current_phase == StoryPhase.KAN:
             new_season, updated_user = await self.create_new_season(user, current_season.season_no + 1, story.summary)
             user = updated_user
-        
-        # 完了したタスクを更新
-        if completed_tasks:  # 完了したタスクが存在する場合のみ更新
-            self.task_service.update_tasks_to_experienced(completed_tasks, user_id)
         
         # 更新日時を更新
         current_time = datetime.now().isoformat()
@@ -271,7 +275,7 @@ class SeasonService:
         season_ref = user_ref.collection('seasons').document(season.id)
         season.current_chapter += 1
         season.updated_at = datetime.now()
-        print(f"season.current_phase: {season.current_phase}")
+        logger.debug(f"シーズン更新 - フェーズ: {season.current_phase}")
         update_data = {
             'total_exp': season.total_exp,
             'current_phase': season.current_phase,

@@ -49,6 +49,13 @@ export class HomeComponent implements OnInit, OnDestroy {
   /** 新しいストーリーがあるかどうか */
   hasNewStory = false;
 
+  /** ストーリーコンポーネントの状態管理 */
+  storyViewState: 'current' | 'history' = 'current';
+  selectedStorySeasonId?: string;
+
+  /** モバイル表示かどうか */
+  isMobile = false;
+
   constructor(
     private dashboardService: DashboardService,
     private authService: AuthService
@@ -59,8 +66,14 @@ export class HomeComponent implements OnInit, OnDestroy {
    * 認証状態の変更を監視し、ユーザーがログインした際にダッシュボードデータを読み込みます。
    */
   ngOnInit() {
-    console.log('HomeComponent: ngOnInit 開始');
+    // モバイル表示かどうかを判定（CSSのlgブレークポイントに基づく）
+    this.updateMobileState();
     
+    // ウィンドウリサイズ時の判定更新
+    window.addEventListener('resize', () => {
+      this.updateMobileState();
+    });
+
     // 認証状態の変更を監視
     combineLatest([
       this.authService.user$,
@@ -73,11 +86,9 @@ export class HomeComponent implements OnInit, OnDestroy {
       // 認証状態が初期化され、かつ認証済みユーザーが存在する場合のみ処理を続行
       filter(([user, isInitialized]) => {
         const shouldProceed = isInitialized && !!user;
-        console.log('HomeComponent: 処理継続判定:', shouldProceed);
         return shouldProceed;
       }),
       switchMap(([user]) => {
-        console.log('HomeComponent: ダッシュボードデータ取得開始');
         // データをクリアしてから新しいデータを読み込む
         this.clearData();
         
@@ -89,9 +100,6 @@ export class HomeComponent implements OnInit, OnDestroy {
         };
         
         return this.dashboardService.initializeDashboard(userData).pipe(
-          tap(data => {
-            console.log('HomeComponent: ダッシュボード初期化成功:', data);
-          }),
           catchError(error => {
             console.error('HomeComponent: ダッシュボード初期化エラー:', error);
             return of(null);
@@ -125,6 +133,10 @@ export class HomeComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.destroy$.next();
     this.destroy$.complete();
+    // リサイズイベントリスナーを削除
+    window.removeEventListener('resize', () => {
+      this.updateMobileState();
+    });
   }
 
   /**
@@ -139,6 +151,11 @@ export class HomeComponent implements OnInit, OnDestroy {
     this.currentTab = tab;
     if (tab === 'stories') {
       this.hasNewStory = false;
+      // デスクトップ表示の場合のみ、selectedStorySeasonIdをクリアして最新シーズンを表示
+      // モバイル表示では履歴選択を保持する
+      if (!this.isMobile) {
+        this.selectedStorySeasonId = undefined;
+      }
     }
   }
 
@@ -158,8 +175,28 @@ export class HomeComponent implements OnInit, OnDestroy {
    * @param seasonId 選択されたシーズンID
    */
   onSeasonSelected(seasonId: string) {
+    // seasonIdがundefinedの場合は何もしない
+    if (!seasonId) {
+      return;
+    }
+    
+    // デスクトップ表示の場合のみ、最新シーズン（進行中のシーズン）のIDを取得
+    if (!this.isMobile) {
+      if (this.dashboardData && this.dashboardData.seasons) {
+        const currentSeason = this.dashboardData.seasons.find(s => s.current_phase !== 4);
+        if (currentSeason) {
+          this.selectedSeasonId = currentSeason.id;
+          this.selectedStorySeasonId = undefined;
+          this.storyViewState = 'current';
+          return;
+        }
+      }
+    }
+    
+    // モバイル表示の場合または最新シーズンが見つからない場合
     this.selectedSeasonId = seasonId;
     this.currentTab = 'stories';
+    this.storyViewState = 'current';
   }
 
   /**
@@ -204,5 +241,30 @@ export class HomeComponent implements OnInit, OnDestroy {
     if (!isLoading) {
       this.hasNewStory = true;
     }
+  }
+
+  /**
+   * ストーリーコンポーネントのビュー状態が変更された時の処理を行います。
+   * @param viewState 新しいビュー状態
+   */
+  onStoryViewChanged(viewState: 'current' | 'history') {
+    this.storyViewState = viewState;
+  }
+
+  /**
+   * ストーリーコンポーネントでシーズンが選択された時の処理を行います。
+   * @param seasonId 選択されたシーズンID
+   */
+  onStorySeasonSelected(seasonId: string) {
+    this.selectedStorySeasonId = seasonId;
+  }
+
+  /**
+   * モバイル表示かどうかを判定（CSSのlgブレークポイントに基づく）
+   */
+  private updateMobileState() {
+    // CSSのlgブレークポイント（1024px）に基づいて判定
+    // Tailwind CSSのlg:プレフィックスと同じブレークポイントを使用
+    this.isMobile = window.innerWidth < 1024;
   }
 } 

@@ -20,23 +20,23 @@ class StoryService:
         
         # 前章の要約を取得
         previous_summary = ""
-        previous_phase = StoryPhase.KI
         if season.current_chapter > 0:
             previous_story = await self._get_previous_story(user.id, season.id)
             if previous_story:
                 previous_summary = previous_story.summary or ""
-                previous_phase = previous_story.phase
         else:
             previous_summary = season.previous_summary
 
         # 物語を生成
         story_data = await self.story_generator.generate_story(
-            player_name=user.player_name or "",  # player_nameが設定されていない場合は空文字
+            player_name=user.player_name or "",
             chapter_no=season.current_chapter + 1,
             phase=season.current_phase,
             completed_tasks=completed_task_titles,
             previous_summary=previous_summary,
-            is_final_chapter=is_final_chapter
+            is_final_chapter=is_final_chapter,
+            user_id=user.id,
+            season_id=season.id
         )
         # print(f"story_data: {story_data}")
         
@@ -52,6 +52,7 @@ class StoryService:
             title=story_data["title"],
             content=story_data["story"],
             insight=story_data["insight"],
+            name=story_data["name"],
             phase=season.current_phase,
             created_at=datetime.now(),
             summary=story_data["summary"],

@@ -30,6 +30,13 @@
                     <div class="h-full bg-orange-400 transition-all duration-300" [style.width.%]="expPercentage"></div>
                   </div>
                 </div>
+                <!-- 完了済タスク数（モバイル表示） -->
+                <div class="sm:hidden flex items-center space-x-1 text-sm text-gray-600">
+                  <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                  </svg>
+                  <span class="text-base font-medium">{{ completedTasksCount }}</span>
+                </div>
               </div>
             </div>
             <!-- 経験値バー（デスクトップ表示） -->

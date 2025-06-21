@@ -21,8 +21,8 @@ class StorageService:
             Optional[str]: アップロードされた画像のパス
         """
         try:
-            print(f"bucket_name: {bucket_name}")
-            print(f"storage_path: {storage_path}")
+            logger.debug(f"bucket_name: {bucket_name}")
+            logger.debug(f"storage_path: {storage_path}")
             # バケットの取得
             bucket = self.storage_client.bucket(bucket_name)
             
@@ -39,7 +39,6 @@ class StorageService:
             return storage_path
             
         except Exception as e:
-            print(f"GCSアップロードエラー: {str(e)}")
             logger.error(f"GCSアップロードエラー: {str(e)}")
             raise Exception(f"GCSへのアップロードに失敗しました: {str(e)}")
 

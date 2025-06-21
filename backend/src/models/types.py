@@ -7,6 +7,14 @@ class TaskStatus(int, Enum):
     PENDING = 0
     COMPLETED = 1
 
+class TaskCategory(int, Enum):
+    WORK = 1      # 仕事
+    HEALTH = 2    # 健康
+    LEARNING = 3  # 学習
+    LIFE = 4      # 生活
+    HOBBY = 5     # 趣味
+    OTHER = 6     # その他
+
 class StoryPhase(int, Enum):
     KI = 0    # 起：物語の始まり
     SHO = 1  # 承：展開
@@ -19,6 +27,8 @@ class Task(BaseModel):
     title: str
     due_date: Optional[datetime] = None
     status: TaskStatus = TaskStatus.PENDING
+    category: Optional[int] = None  # カテゴリを数値で保持
+    season_id: Optional[str] = None  # タスクが属するシーズンID
     created_at: datetime = datetime.now()
     completed_at: Optional[datetime] = None
     experienced_at: Optional[datetime] = None

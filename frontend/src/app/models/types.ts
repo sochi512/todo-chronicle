@@ -26,6 +26,8 @@ export interface Task {
   title: string;            // タスクのタイトル
   due_date?: Date;          // 期限日
   status: TaskStatus;       // タスクの状態
+  category?: number;        // カテゴリを数値で保持
+  season_id?: string;       // タスクが属するシーズンID
   created_at: Date;         // 作成日時
   completed_at?: Date;      // 完了日時
   experienced_at?: Date;    // 経験値獲得日時

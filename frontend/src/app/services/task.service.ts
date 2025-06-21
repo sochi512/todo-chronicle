@@ -33,9 +33,21 @@ export class TaskService {
    * @returns 作成されたタスクのObservable
    */
   createTask(task: Omit<Task, 'id' | 'created_at' | 'completed_at'>): Observable<Task> {
-    return this.http.post<Task>(`${environment.apiUrl}/users/me/tasks`, task).pipe(
+    // カテゴリが未設定の場合、既存のタスクからタイトルが一致するものを検索
+    let taskToCreate = { ...task };
+    if (taskToCreate.category === undefined) {
+      const currentTasks = this.tasksSubject.getValue();
+      const matchingTask = currentTasks.find(existingTask => 
+        existingTask.title.toLowerCase() === taskToCreate.title.toLowerCase()
+      );
+      
+      if (matchingTask && matchingTask.category !== undefined) {
+        taskToCreate.category = matchingTask.category;
+      }
+    }
+
+    return this.http.post<Task>(`${environment.apiUrl}/users/me/tasks`, taskToCreate).pipe(
       tap(newTask => {
-        console.log('TaskService: タスク作成成功:', newTask);
         const currentTasks = this.tasksSubject.getValue();
         this.tasksSubject.next([...currentTasks, newTask]);
       }),
@@ -56,7 +68,6 @@ export class TaskService {
   updateTask(taskId: string, updates: Partial<Task>): Observable<Task> {
     return this.http.put<Task>(`${environment.apiUrl}/users/me/tasks/${taskId}`, updates).pipe(
       tap(updatedTask => {
-        console.log('TaskService: タスク更新成功:', updatedTask);
         const currentTasks = this.tasksSubject.getValue();
         const updatedTasks = currentTasks.map(task => 
           task.id === taskId ? updatedTask : task
@@ -79,7 +90,6 @@ export class TaskService {
   deleteTask(taskId: string): Observable<void> {
     return this.http.delete<void>(`${environment.apiUrl}/users/me/tasks/${taskId}`).pipe(
       tap(() => {
-        console.log('TaskService: タスク削除成功:', taskId);
         const currentTasks = this.tasksSubject.getValue();
         const updatedTasks = currentTasks.filter(task => task.id !== taskId);
         this.tasksSubject.next(updatedTasks);
@@ -102,7 +112,6 @@ export class TaskService {
     const url = `${environment.apiUrl}/users/me/tasks/${taskId}/status`;
     return this.http.put<Task>(url, { status: Number(status) }).pipe(
       tap(updatedTask => {
-        console.log('TaskService: タスクステータス更新成功:', updatedTask);
         const currentTasks = this.tasksSubject.getValue();
         const updatedTasks = currentTasks.map(task => 
           task.id === taskId ? updatedTask : task

@@ -28,10 +28,16 @@ export class StoryComponent implements OnChanges {
   @Input() isLoading = false;
   /** モバイル表示フラグ */
   @Input() isMobile = false;
+  /** 外部から制御するビュー状態 */
+  @Input() currentView?: 'current' | 'history';
+  /** 外部から制御する選択中のストーリーシーズンID */
+  @Input() selectedStorySeasonId?: string;
   /** ビュー変更イベント */
   @Output() viewChanged = new EventEmitter<'current' | 'history'>();
+  /** シーズン選択イベント */
+  @Output() seasonSelected = new EventEmitter<string>();
   /** 現在のビュー（現在/履歴） */
-  currentView: 'current' | 'history' = 'current';
+  _currentView: 'current' | 'history' = 'current';
   /** 選択中のシーズン */
   selectedSeason: Season | null = null;
   /** 初期ロード状態 */
@@ -46,7 +52,7 @@ export class StoryComponent implements OnChanges {
   selectedImageUrl: string | null = null;
 
   /** ローディングアニメーションの定数 */
-  private readonly LOADING_INTERVAL_MS = 1500;  // 1ステップあたりの待機時間（ミリ秒）
+  private readonly LOADING_INTERVAL_MS = 1800;  // 1ステップあたりの待機時間（ミリ秒）
   private readonly MAX_LOADING_STEPS = 20;      // 最大リトライ回数（30秒 ÷ 1.5秒 = 20回）
 
   /** 画像取得のリトライ回数 */
@@ -65,6 +71,27 @@ export class StoryComponent implements OnChanges {
    * @param changes 変更されたプロパティの情報
    */
   ngOnChanges(changes: SimpleChanges) {
+    // 外部から制御されるビュー状態の同期
+    if (this.currentView) {
+      this._currentView = this.currentView;
+    }
+
+    // 外部から制御される選択中のストーリーシーズンIDの処理
+    if (changes['selectedStorySeasonId'] && this.selectedStorySeasonId) {
+      const season = this.seasons.find(s => s.id === this.selectedStorySeasonId);
+      if (season) {
+        this.selectedSeason = season;
+        // ストーリーが未取得の場合は取得
+        if (season.current_chapter !== 0 && (!season.stories || season.stories.length === 0)) {
+          this.loadStories(season);
+        }
+        // 完了フェーズの場合は画像URLを取得
+        if (season.current_phase === StoryPhase.KAN) {
+          this.loadStoryImages(season);
+        }
+      }
+    }
+
     if (changes['seasons'] || changes['selectedSeasonId'] || changes['stories']) {
       // シーズン一覧が空になった場合、選択状態をリセット
       if (!this.seasons.length) {
@@ -76,8 +103,6 @@ export class StoryComponent implements OnChanges {
       if (changes['selectedSeasonId'] && this.selectedSeasonId) {
         const season = this.seasons.find(s => s.id === this.selectedSeasonId);
         if (season) {
-          // 頁をめくるボタンクリック時は、必ずcurrentタブに切り替える
-          this.currentView = 'current';
           this.selectedSeason = season;
           // ストーリーが未取得の場合は取得
           if (season.current_chapter !== 0 && (!season.stories || season.stories.length === 0)) {
@@ -101,25 +126,28 @@ export class StoryComponent implements OnChanges {
 
   /**
    * 現在表示中のシーズンを取得します。
-   * 優先順位：履歴タブの選択 > 頁をめくるボタンの選択 > 選択中のシーズン > 進行中のシーズン
+   * 優先順位：頁をめくるボタンクリック時 > 履歴タブでの選択 > 選択中のシーズン > 進行中のシーズン
    */
   get currentSeason(): Season | undefined {
-    // 履歴タブで選択中の場合は、selectedSeasonを優先
-    if (this.currentView === 'history' && this.selectedSeason) {
-      return this.selectedSeason;
+    // 1. selectedStorySeasonIdがあれば最優先（履歴タブでの選択）
+    if (this.selectedStorySeasonId) {
+      const season = this.seasons.find(s => s.id === this.selectedStorySeasonId);
+      if (season) return season;
     }
-    // 次にselectedSeasonIdを確認（頁をめくるボタンクリック時）
+    // 2. selectedSeasonIdがあれば次に優先（頁をめくるボタンクリック時）
     if (this.selectedSeasonId) {
       const season = this.seasons.find(s => s.id === this.selectedSeasonId);
-      if (season) {
-        return season;
-      }
+      if (season) return season;
     }
-    // 次にselectedSeasonを確認
+    // 3. 履歴タブで選択中の場合は、selectedSeasonを優先
+    if (this._currentView === 'history' && this.selectedSeason) {
+      return this.selectedSeason;
+    }
+    // 4. 次にselectedSeasonを確認
     if (this.selectedSeason) {
       return this.selectedSeason;
     }
-    // デフォルト：進行中のシーズンを表示
+    // 5. デフォルト：進行中のシーズンを表示
     return this.seasons.find(s => s.current_phase !== 4);
   }
 
@@ -127,14 +155,16 @@ export class StoryComponent implements OnChanges {
    * 現在のストーリービューに切り替えます。
    */
   switchToCurrentView() {
-    this.currentView = 'current';
+    this._currentView = 'current';
+    this.viewChanged.emit('current');
   }
 
   /**
    * 履歴ビューに切り替えます。
    */
   switchToHistoryView() {
-    this.currentView = 'history';
+    this._currentView = 'history';
+    this.viewChanged.emit('history');
   }
 
   /**
@@ -144,17 +174,14 @@ export class StoryComponent implements OnChanges {
   selectSeason(season: Season) {
     if (!this.isEnabled || this.isInitialLoad) return;
 
-    // 履歴タブでの選択時は、selectedSeasonIdをクリア
-    if (this.currentView === 'history') {
-      this.selectedSeasonId = undefined;
-    }
-
     if (season.current_chapter !== 0 && (!season.stories || season.stories.length === 0)) {
       this.loadStories(season);
     } else {
       this.selectedSeason = season;
       // 履歴タブでの選択時は、currentタブに切り替える
-      this.currentView = 'current';
+      this._currentView = 'current';
+      this.viewChanged.emit('current');
+      this.seasonSelected.emit(season.id!);
       // 完了フェーズの場合は画像URLを取得
       if (season.current_phase === StoryPhase.KAN) {
         this.loadStoryImages(season);
@@ -172,7 +199,9 @@ export class StoryComponent implements OnChanges {
         season.stories = Array.isArray(stories) ? stories : stories.stories || [];
         this.selectedSeason = season;
         // 履歴タブでの選択時は、currentタブに切り替える
-        this.currentView = 'current';
+        this._currentView = 'current';
+        this.viewChanged.emit('current');
+        this.seasonSelected.emit(season.id!);
         // 完了フェーズの場合は画像URLを取得
         if (season.current_phase === StoryPhase.KAN) {
           this.loadStoryImages(season);
@@ -182,7 +211,9 @@ export class StoryComponent implements OnChanges {
         console.error('ストーリーの取得に失敗しました:', error);
         this.selectedSeason = season;
         // 履歴タブでの選択時は、currentタブに切り替える
-        this.currentView = 'current';
+        this._currentView = 'current';
+        this.viewChanged.emit('current');
+        this.seasonSelected.emit(season.id!);
       }
     });
   }
@@ -203,7 +234,6 @@ export class StoryComponent implements OnChanges {
     // 画像URLを取得
     this.storyService.getStoryImage(season.id!, completedStory.id!).subscribe({
       next: (response) => {
-        console.log('ストーリー画像の取得に成功しました:', response.url);
         completedStory.imageUrl = response.url;
         // 成功したらリトライカウントをリセット
         this.imageRetryCount = 0;
@@ -237,7 +267,7 @@ export class StoryComponent implements OnChanges {
    */
   private resetState() {
     this.selectedSeason = null;
-    this.currentView = 'current';
+    this._currentView = 'current';
     this.isInitialLoad = true;
     setTimeout(() => {
       this.isInitialLoad = false;
@@ -333,4 +363,30 @@ export class StoryComponent implements OnChanges {
   closeImageModal() {
     this.selectedImageUrl = null;
   }
+
+  /**
+   * ストーリーの洞察から名前部分を取得します。
+   * @param insight 洞察テキスト
+   * @returns 名前部分
+   */
+  getInsightName(insight: string): string {
+    if (!insight) return '';
+    const lines = insight.split('\n');
+    return lines[0] || '';
+  }
+
+  /**
+   * ストーリーの洞察から内容部分を取得します。
+   * @param insight 洞察テキスト
+   * @returns 内容部分（最初の改行以降）
+   */
+  getInsightContent(insight: string): string {
+    if (!insight) return '';
+    const lines = insight.split('\n');
+    return lines.slice(1).join('\n');
+  }
+
+  /**
+   * ストーリーコンテンツをフォーマットします。
+   */
 } 
