@@ -8,16 +8,36 @@ from vertexai.preview.generative_models import GenerativeModel, GenerationConfig
 logger = logging.getLogger(__name__)
 
 class PromptGenerator:
-    """画像生成用のプロンプトを生成するサービス"""
+    """
+    画像生成用のプロンプトを生成するサービス
+    
+    このクラスは、Vertex AIのGeminiモデルを使用してファンタジーストーリーから
+    画像生成用のプロンプトを自動生成します。Imagen 3用の英語プロンプトを
+    ライトノベル風のアニメイラストスタイルで生成します。
+    
+    Attributes:
+        model: Vertex AIのGenerativeModelインスタンス
+        system_prompt: プロンプト生成用のシステムプロンプトテンプレート
+    """
 
     def __init__(self):
+        """
+        PromptGeneratorの初期化
+        
+        環境変数を読み込み、Vertex AIを初期化し、
+        プロンプト生成用のシステムプロンプトを設定します。
+        
+        Raises:
+            ValueError: 必要な環境変数が設定されていない場合
+            Exception: Vertex AI初期化に失敗した場合
+        """
         # 環境変数の読み込み
         load_dotenv()
         self._initialize_vertex_ai()
         
         # プロンプト生成用のシステムプロンプト
         self.system_prompt = """
-🎯 SYSTEM PROMPT: Create a single-sentence image generation prompt for Imagen 3
+SYSTEM PROMPT: Create a single-sentence image generation prompt for Imagen 3
 
 You are a prompt generation assistant.
 
@@ -28,7 +48,7 @@ Then, write a **single English sentence prompt** (for Imagen 3) that describes t
 
 ---
 
-### 📝 OUTPUT RULES
+### OUTPUT RULES
 
 - Output exactly **one English sentence**
 - Limit to **under 55 words**
@@ -38,7 +58,7 @@ Then, write a **single English sentence prompt** (for Imagen 3) that describes t
 
 ---
 
-### 👤 MAIN CHARACTER
+### MAIN CHARACTER
 
 - Age: early to mid 20s  
 - Gender: male (mature and calm in appearance, not boyish)  
@@ -53,7 +73,7 @@ Then, write a **single English sentence prompt** (for Imagen 3) that describes t
 
 ---
 
-### 🧑‍🤝‍🧑 COMPANION (IF PRESENT)
+### COMPANION (IF PRESENT)
 
 - Include **only if clearly described** in the story  
 - Max 1 companion  
@@ -67,13 +87,13 @@ Then, write a **single English sentence prompt** (for Imagen 3) that describes t
 
 ---
 
-### ⚔️ ENEMY & ACTION SCENE RULES
+### ENEMY & ACTION SCENE RULES
 
 - If an enemy appears, and the battle is ongoing or at its peak, **always prefer a dynamic battle scene** over a post-battle pose
 - Choose one of the following:
   - Protagonist attacking, dodging, or unleashing magic  
   - Companion supporting with magic, ranged attacks, or synchronized moves  
-- Avoid vague “mid-action” or unclear victory moments
+- Avoid vague "mid-action" or unclear victory moments
 
 **If the enemy is defeated**, clearly show the aftermath:
 - Crumbling body, fading glow, shattered debris  
@@ -84,7 +104,7 @@ Even if the story describes the moment just after victory, if a visible enemy is
 
 ---
 
-### 🖌️ VISUAL STYLE GUIDELINES
+### VISUAL STYLE GUIDELINES
 
 The illustration must follow a **modern Japanese light novel cover style**:
 
@@ -109,7 +129,7 @@ Use combinations of landscape, lighting, and atmosphere to create a distinct fin
 
 ---
 
-### 🔁 IF SCENE IS UNDERDESCRIBED
+### IF SCENE IS UNDERDESCRIBED
 
 If the story lacks visual details, assume a **final battle or victorious aftermath**, and choose a clear moment:  
 - Either the decisive strike (if the enemy is active)  
@@ -118,7 +138,7 @@ Always prefer action over ambiguity.
 
 ---
 
-### 🚫 PROHIBITED ELEMENTS
+### PROHIBITED ELEMENTS
 
 - No speech bubbles, text, UI, or manga-style overlays  
 - No gore, blood, corpses, or fatal descriptors  
@@ -126,7 +146,21 @@ Always prefer action over ambiguity.
 """
 
     def _initialize_vertex_ai(self):
-        """Vertex AIの初期化"""
+        """
+        Vertex AIの初期化
+        
+        環境変数から設定を取得し、Vertex AIクライアントと
+        GenerativeModelを初期化します。
+        
+        Required Environment Variables:
+            GOOGLE_CLOUD_PROJECT: Google Cloud プロジェクトID
+            VERTEX_AI_LOCATION: Vertex AIのリージョン（デフォルト: asia-northeast1）
+            VERTEX_AI_MODEL_NAME: 使用するモデル名（デフォルト: gemini-2.0-flash）
+            
+        Raises:
+            ValueError: 必要な環境変数が設定されていない場合
+            Exception: Vertex AI初期化に失敗した場合
+        """
         try:
             # 環境変数から設定を取得
             project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
@@ -152,12 +186,31 @@ Always prefer action over ambiguity.
     async def generate_prompt(self, story_text: str) -> str:
         """
         ストーリーテキストから画像生成用のプロンプトを生成する
-
+        
+        Vertex AIのGeminiモデルを使用して、ファンタジーストーリーから
+        Imagen 3用の英語プロンプトを生成します。ライトノベル風の
+        アニメイラストスタイルで、55単語以内の単一文を生成します。
+        
         Args:
-            story_text (str): ストーリーテキスト
-
+            story_text (str): プロンプト生成の元となるストーリーテキスト
+            
         Returns:
-            str: 生成されたプロンプト
+            str: 生成された画像生成用プロンプト（英語）
+            
+        Raises:
+            Exception: プロンプト生成に失敗した場合
+            
+        Examples:
+            >>> generator = PromptGenerator()
+            >>> prompt = await generator.generate_prompt("主人公が敵と戦う場面...")
+            >>> print(prompt)
+            # "light novel style fantasy anime illustration of a young warrior..."
+            
+        Note:
+            - 生成されるプロンプトは55単語以内の単一文
+            - ライトノベル風のアニメイラストスタイル
+            - 最終章（結フェーズ）の場面を想定
+            - 暴力や不適切な表現は除外される
         """
         try:
             # 生成設定
@@ -176,7 +229,7 @@ Always prefer action over ambiguity.
             
             # 生成されたプロンプトを取得
             prompt = response.text.strip()
-            print(f"prompt: {prompt}")
+            logger.debug(f"prompt: {prompt}")
             
             return prompt
 

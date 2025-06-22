@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from src.models.types import TaskStatus, ErrorMessages, Task
 from src.services.experience_calculator import ExperienceCalculator
 from src.services.story_generator import StoryGenerator
+from src.services.category_classifier import CategoryClassifier
 from datetime import datetime
 from google.cloud.firestore import FieldFilter
 from src.utils.encoders import custom_json_response
@@ -16,13 +17,33 @@ class TaskService:
         self.db = db
         self.exp_calculator = ExperienceCalculator()
         self.story_generator = StoryGenerator(db)
+        self.category_classifier = CategoryClassifier()
 
-    def create_task(self, task: Task, user_id: str) -> Task:
-        """タスクを作成"""
+    async def create_task(self, task: Task, user_id: str) -> Task:
+        """
+        タスクを作成
+        
+        タスク作成時に、タスク名からカテゴリを自動分類し、
+        Firestoreに保存します。
+        
+        Args:
+            task: 作成するタスク
+            user_id: ユーザーID
+            
+        Returns:
+            Task: 作成されたタスク（カテゴリが設定済み）
+        """
+        # カテゴリが設定されていない場合、自動分類を実行
+        if task.category is None:
+            task.category = await self.category_classifier.classify_task_category(task.title)
+        
+        # Firestoreに保存
         task_ref = self.db.collection('users').document(user_id).collection('tasks').document()
         task_dict = task.model_dump()
         task_dict['id'] = task_ref.id
         task_ref.set(task_dict)
+        
+        logger.info(f"タスクを作成しました: user_id={user_id}, task_id={task_ref.id}, category={task.category}")
         return Task(**task_dict)
 
     def get_tasks(self, user_id: str) -> List[Task]:
@@ -46,8 +67,20 @@ class TaskService:
             raise HTTPException(status_code=404, detail=ErrorMessages.TASK_NOT_FOUND)
         return Task(**task.to_dict())
 
-    def update_task(self, task: Task, user_id: str) -> Task:
-        """タスクを更新"""
+    async def update_task(self, task: Task, user_id: str) -> Task:
+        """
+        タスクを更新
+        
+        タスク更新時に、カテゴリが設定されていない場合は
+        タスク名からカテゴリを自動分類します。
+        
+        Args:
+            task: 更新するタスク
+            user_id: ユーザーID
+            
+        Returns:
+            Task: 更新されたタスク（カテゴリが設定済み）
+        """
         task_ref = self.db.collection('users').document(user_id).collection('tasks').document(task.id)
         
         # タスクの存在確認
@@ -55,10 +88,14 @@ class TaskService:
         if not existing_task.exists:
             logger.warning(f"タスクが存在しません: user_id={user_id}, task_id={task.id}")
             raise HTTPException(status_code=404, detail=ErrorMessages.TASK_NOT_FOUND)
+        
+        # カテゴリが設定されていない場合、自動分類を実行
+        if task.category is None:
+            task.category = await self.category_classifier.classify_task_category(task.title)
             
         task_dict = task.model_dump()
         task_ref.update(task_dict)
-        logger.info(f"タスクを更新しました: user_id={user_id}, task_id={task.id}")
+        logger.info(f"タスクを更新しました: user_id={user_id}, task_id={task.id}, category={task.category}")
         return task
 
     def delete_task(self, task_id: str, user_id: str) -> None:
@@ -91,14 +128,45 @@ class TaskService:
             .where(filter=FieldFilter("experienced_at", ">", datetime.min))
         return len(list(query.stream()))
 
-    def update_tasks_to_experienced(self, tasks: List[Task], user_id: str) -> None:
-        """タスクを経験値獲得済みに更新"""
+    def update_tasks_season_id(self, tasks: List[Task], user_id: str, season_id: str) -> None:
+        """
+        タスクのseason_idのみを更新（experienced_atは更新しない）
+        
+        Args:
+            tasks (List[Task]): 更新するタスクのリスト
+            user_id (str): ユーザーID
+            season_id (str): シーズンID
+        """
+        batch = self.db.batch()
+        for task in tasks:
+            task.season_id = season_id
+            task_ref = self.db.collection('users').document(user_id).collection('tasks').document(task.id)
+            batch.update(task_ref, {'season_id': season_id})
+        batch.commit()
+        
+        logger.info(f"タスクのseason_idを更新しました: user_id={user_id}, task_count={len(tasks)}, season_id={season_id}")
+
+    def update_tasks_to_experienced(self, tasks: List[Task], user_id: str, season_id: str = None) -> None:
+        """
+        タスクを経験値獲得済みに更新
+        
+        Args:
+            tasks (List[Task]): 更新するタスクのリスト
+            user_id (str): ユーザーID
+            season_id (str, optional): シーズンID（指定された場合、タスクのseason_idも更新）
+        """
         batch = self.db.batch()
         for task in tasks:
             task.experienced_at = datetime.now()
+            # season_idが指定された場合、タスクのseason_idも更新
+            if season_id:
+                task.season_id = season_id
+            
             task_ref = self.db.collection('users').document(user_id).collection('tasks').document(task.id)
             batch.update(task_ref, task.model_dump())
         batch.commit()
+        
+        logger.info(f"タスクを経験値獲得済みに更新しました: user_id={user_id}, task_count={len(tasks)}, season_id={season_id}")
 
     def update_task_status(self, task_id: str, status: TaskStatus, user_id: str) -> Task:
         """タスクのステータスのみを更新"""

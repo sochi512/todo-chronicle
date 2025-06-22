@@ -37,30 +37,56 @@ import { DateFormatPipe } from '../../pipes/date-format.pipe';
   ]
 })
 export class TaskListComponent implements OnChanges, OnInit {
+  /** 表示するタスク一覧 */
   @Input() tasks: Task[] = [];
+  /** コンポーネントの有効/無効状態 */
   @Input() isEnabled = false;
+  /** モバイル表示かどうか */
   @Input() isMobile = false;
+  /** ストーリー生成中かどうか */
   @Input() isStoryLoading = false;
+  /** タスク更新時のイベント */
   @Output() taskUpdated = new EventEmitter<void>();
+  /** シーズン選択時のイベント */
   @Output() seasonSelected = new EventEmitter<string>();
+  /** ストーリー読み込み状態の変更イベント */
   @Output() storyLoading = new EventEmitter<boolean>();
+  /** ストーリー更新時のイベント */
+  @Output() storyUpdated = new EventEmitter<void>();
   
+  /** モーダルの表示状態 */
   showModal = false;
+  /** 編集中のタスク */
   editingTask: Task | null = null;
+  /** 全タスク表示モードかどうか */
   showAllTasks = false;
+  /** 初期読み込み中かどうか */
   isInitialLoad = true;
+  /** 経験値更新中かどうか */
   isUpdatingExperience = false;
+  /** タスクフォームのデータ */
   taskForm: {
     title: string;
     dueDate: string | undefined;
+    category: number | undefined;
   } = {
     title: '',
-    dueDate: undefined
+    dueDate: undefined,
+    category: undefined
   };
 
+  /** 削除確認モーダルの表示状態 */
   showDeleteConfirm = false;
+  /** 削除対象のタスク */
   taskToDelete: Task | null = null;
+  /** タスク保存処理中かどうか */
+  isSavingTask = false;
 
+  /**
+   * タスクリストコンポーネントのコンストラクタ
+   * @param taskService タスク管理サービス
+   * @param dashboardService ダッシュボード管理サービス
+   */
   constructor(private taskService: TaskService, private dashboardService: DashboardService) {}
 
   /**
@@ -93,6 +119,23 @@ export class TaskListComponent implements OnChanges, OnInit {
       setTimeout(() => {
         this.isInitialLoad = false;
       }, 100);
+    }
+  }
+
+  /**
+   * カテゴリーの表示用テキストを取得します。
+   * @param category カテゴリーの数値
+   * @returns カテゴリーの表示テキスト
+   */
+  getCategoryDisplay(category: number | undefined): string {
+    switch (category) {
+      case 1: return '💼 仕事';
+      case 2: return '🏃 健康';
+      case 3: return '📖 学習';
+      case 4: return '🧺 生活';
+      case 5: return '🧩 趣味';
+      case 6: return '🌐 その他';
+      default: return '🌐 その他';
     }
   }
 
@@ -135,11 +178,12 @@ export class TaskListComponent implements OnChanges, OnInit {
    * モーダル表示後、タイトル入力フィールドにフォーカスを移動します。
    */
   openAddTaskModal() {
-    if (!this.isEnabled || this.showModal) return;
+    if (!this.isEnabled || this.showModal || this.isSavingTask) return;
     this.editingTask = null;
     this.taskForm = {
       title: '',
-      dueDate: undefined
+      dueDate: undefined,
+      category: undefined
     };
     this.showModal = true;
     // モーダルが表示された後にフォーカスを移動
@@ -155,11 +199,8 @@ export class TaskListComponent implements OnChanges, OnInit {
    * 経験値更新モーダルを開き、完了済みタスクの経験値を獲得します。
    * 経験値獲得後、ストーリーが生成され、シーズン情報が更新されます。
    */
-  openRecordModal() {
-    console.log('openRecordModal called', { isEnabled: this.isEnabled });
-
+  updateExperience() {
     if (!this.isEnabled || this.isUpdatingExperience) {
-      console.log('Component is disabled or updating experience');
       return;
     }
 
@@ -176,11 +217,20 @@ export class TaskListComponent implements OnChanges, OnInit {
     this.isUpdatingExperience = true;
     this.storyLoading.emit(true);
 
+    // デスクトップ表示の場合、updateUserExperience()実行前に最新シーズンを選択
+    if (!this.isMobile) {
+      const dashboardData = this.dashboardService.getCurrentDashboardData();
+      if (dashboardData && dashboardData.seasons) {
+        const currentSeason = dashboardData.seasons.find(s => s.current_phase !== 4);
+        if (currentSeason) {
+          this.seasonSelected.emit(currentSeason.id);
+        }
+      }
+    }
+
     // 経験値更新APIを呼び出す
     this.taskService.updateUserExperience().subscribe({
       next: (response) => {
-        console.log('経験値更新成功:', response);
-        
         if (response.earned_exp === 0) {
           this.showHoverMessage('経験値は獲得できませんでした');
           this.isUpdatingExperience = false;
@@ -214,8 +264,6 @@ export class TaskListComponent implements OnChanges, OnInit {
 
         // ストーリーの追加
         const currentSeason = dashboardData.seasons.find((s: Season) => s.id === response.season.id);
-        console.log('現在のシーズン:', currentSeason);
-        console.log('追加するストーリー:', response.story);
         
         // 完了済みで経験値未獲得のタスクを現在時刻で更新
         const now = new Date();
@@ -231,7 +279,6 @@ export class TaskListComponent implements OnChanges, OnInit {
             currentSeason.stories = [];
           }
           currentSeason.stories.unshift(response.story);
-          console.log('更新後のシーズン:', currentSeason);
         }
 
         // ユーザーデータの更新
@@ -246,21 +293,13 @@ export class TaskListComponent implements OnChanges, OnInit {
         // タスク更新イベントを発火して、親コンポーネントに通知
         this.taskUpdated.emit();
 
+        // ストーリー更新イベントを発火
+        this.storyUpdated.emit();
+
         // デスクトップ表示の場合のみストーリータブに遷移
         if (!this.isMobile) {
-          // レスポンスのseason.season_idのシーズンをストーリータブに表示
-          // 確実に変更を検知するために、一度undefinedを設定してから新しい値を設定
-          this.seasonSelected.emit(undefined);
-          setTimeout(() => {
-            this.seasonSelected.emit(response.season.id.toString());
-            this.isUpdatingExperience = false;
-            this.storyLoading.emit(false);
-            
-            // タスクの完了状態を更新した後に、再度タスク更新イベントを発火
-            setTimeout(() => {
-              this.taskUpdated.emit();
-            }, 100);
-          }, 0);
+          this.isUpdatingExperience = false;
+          this.storyLoading.emit(false);
         } else {
           this.isUpdatingExperience = false;
           this.storyLoading.emit(false);
@@ -307,22 +346,19 @@ export class TaskListComponent implements OnChanges, OnInit {
    * @param task 編集対象のタスク
    */
   editTask(task: Task) {
-    console.log('editTask called', { task, isEnabled: this.isEnabled, showModal: this.showModal });
-    
-    if (!this.isEnabled) {
-      console.log('Component is disabled');
+    if (!this.isEnabled || this.isSavingTask) {
       return;
     }
     
     if (this.showModal) {
-      console.log('Modal is already open');
       return;
     }
     
     this.editingTask = task;
     this.taskForm = {
       title: task.title,
-      dueDate: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : undefined
+      dueDate: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : undefined,
+      category: task.category
     };
     this.showModal = true;
   }
@@ -335,7 +371,8 @@ export class TaskListComponent implements OnChanges, OnInit {
     this.editingTask = null;
     this.taskForm = {
       title: '',
-      dueDate: undefined
+      dueDate: undefined,
+      category: undefined
     };
   }
 
@@ -344,39 +381,32 @@ export class TaskListComponent implements OnChanges, OnInit {
    * 新規作成と更新の両方に対応し、APIを通じてデータを保存します。
    */
   saveTask() {
-    console.log('saveTask called', {
-      isEnabled: this.isEnabled,
-      formValid: this.taskForm.title.length > 0,
-      formValue: this.taskForm,
-      showModal: this.showModal
-    });
-
     if (!this.isEnabled || !this.showModal) {
-      console.log('Component is disabled or modal is not open');
       return;
     }
 
     if (this.taskForm.title.length === 0) {
-      console.log('Form is invalid');
       return;
     }
 
-    // モーダルを閉じて二重送信を防止
-    this.showModal = false;
+    // 保存処理開始
+    this.isSavingTask = true;
 
     const taskData = {
       title: this.taskForm.title,
       due_date: this.taskForm.dueDate ? new Date(this.taskForm.dueDate) : undefined,
       status: this.editingTask?.status || TaskStatus.PENDING,
-      created_at: this.editingTask?.created_at || new Date().toISOString()
+      created_at: this.editingTask?.created_at || new Date().toISOString(),
+      category: this.taskForm.category
     } as const;
 
-    console.log('Task data to save:', taskData);
-
     if (this.editingTask?.id) {
+      // 既存タスクの更新は従来通りAPIレスポンスを待つ
       this.updateExistingTask(taskData);
     } else {
+      // 新規タスク作成は即座にローカルに追加
       this.createNewTask(taskData);
+      // モーダルは即座に閉じる（createNewTask内でcloseModal()が呼ばれる）
     }
   }
 
@@ -384,58 +414,92 @@ export class TaskListComponent implements OnChanges, OnInit {
    * 既存のタスクを更新します。
    * @param taskData 更新するタスクデータ
    */
-  private updateExistingTask(taskData: { title: string; due_date?: Date; status: TaskStatus }) {
+  private updateExistingTask(taskData: { title: string; due_date?: Date; status: TaskStatus; category: number | undefined }) {
     if (!this.editingTask?.id) return;
 
-    console.log('Updating existing task:', taskData);
     this.taskService.updateTask(this.editingTask.id, taskData).subscribe({
       next: (updatedTask) => {
-        console.log('Task updated successfully:', updatedTask);
         const index = this.tasks.findIndex(t => t.id === updatedTask.id);
         if (index !== -1) {
           this.tasks[index] = updatedTask;
         }
         this.taskUpdated.emit();
         this.closeModal();
+        this.isSavingTask = false;
       },
       error: (error) => {
         console.error('タスクの更新に失敗しました:', error);
         // エラー時はモーダルを再度開く
         this.showModal = true;
+        this.isSavingTask = false;
       }
     });
   }
 
   /**
    * 新しいタスクを作成します。
+   * APIレスポンスを待たずにローカルで追加し、バックグラウンドで更新します。
    * @param taskData 作成するタスクデータ
    */
-  private createNewTask(taskData: { title: string; due_date?: Date; status: TaskStatus }) {
-    console.log('Creating new task:', taskData);
+  private createNewTask(taskData: { title: string; due_date?: Date; status: TaskStatus; category: number | undefined }) {
+    // 1. 即座にローカルに追加
+    const localTask: Task = {
+      ...taskData,
+      id: `temp_${Date.now()}`, // 一時的なID
+      category: taskData.category, // ユーザーが選択したカテゴリーを保持
+      created_at: new Date(),
+      status: TaskStatus.PENDING
+    };
+    
+    this.tasks = [localTask, ...this.tasks];
+    
+    // ダッシュボードデータを取得して更新
+    const dashboardData = this.dashboardService.getCurrentDashboardData();
+    if (dashboardData) {
+      dashboardData.tasks = this.tasks;
+      this.dashboardService.updateDashboardData(dashboardData);
+    }
+    
+    // タスク更新イベントを発火
+    this.taskUpdated.emit();
+    this.closeModal();
+    this.isSavingTask = false;
+    
+    // 2. バックグラウンドでAPI呼び出し
     this.taskService.createTask(taskData).subscribe({
-      next: (newTask) => {
-        console.log('Task created successfully:', newTask);
-        // タスクリストを更新
-        this.tasks = [newTask, ...this.tasks];
-        
-        // ダッシュボードデータを取得して更新
-        const dashboardData = this.dashboardService.getCurrentDashboardData();
-        if (dashboardData) {
-          // タスクリストを更新
-          dashboardData.tasks = this.tasks;
+      next: (serverTask) => {        
+        // 3. サーバーレスポンスでローカルデータを更新
+        const index = this.tasks.findIndex(t => t.id === localTask.id);
+        if (index !== -1) {
+          this.tasks[index] = serverTask;
           
           // ダッシュボードデータを更新
+          if (dashboardData) {
+            dashboardData.tasks = this.tasks;
+            this.dashboardService.updateDashboardData(dashboardData);
+          }
+          
+          // タスク更新イベントを発火
+          this.taskUpdated.emit();
+        }
+      },
+      error: (error) => {
+        console.error('タスクの作成に失敗しました:', error);
+        
+        // エラー時はローカルタスクを削除
+        this.tasks = this.tasks.filter(t => t.id !== localTask.id);
+        
+        // ダッシュボードデータを更新
+        if (dashboardData) {
+          dashboardData.tasks = this.tasks;
           this.dashboardService.updateDashboardData(dashboardData);
         }
         
         // タスク更新イベントを発火
         this.taskUpdated.emit();
-        this.closeModal();
-      },
-      error: (error) => {
-        console.error('タスクの作成に失敗しました:', error);
-        // エラー時はモーダルを再度開く
-        this.showModal = true;
+        
+        // エラーメッセージを表示
+        this.showHoverMessage('タスクの作成に失敗しました');
       }
     });
   }
@@ -446,22 +510,17 @@ export class TaskListComponent implements OnChanges, OnInit {
    * @param task ステータスを更新するタスク
    */
   toggleTask(task: Task) {
-    console.log('toggleTask called', { task, isEnabled: this.isEnabled });
-
     if (!this.isEnabled) {
-      console.log('Component is disabled');
       return;
     }
 
     if (!task.id) {
-      console.log('Task ID is missing');
       return;
     }
 
     const newStatus = task.status === TaskStatus.PENDING ? TaskStatus.COMPLETED : TaskStatus.PENDING;
     this.taskService.updateTaskStatus(task.id, newStatus).subscribe({
       next: (updatedTask) => {
-        console.log('Task status updated successfully:', updatedTask);
         // タスクの状態を更新
         const index = this.tasks.findIndex(t => t.id === task.id);
         if (index !== -1) {
@@ -480,15 +539,11 @@ export class TaskListComponent implements OnChanges, OnInit {
    * @param task 削除対象のタスク
    */
   deleteTask(task: Task) {
-    console.log('deleteTask called', { task, isEnabled: this.isEnabled });
-
     if (!this.isEnabled) {
-      console.log('Component is disabled');
       return;
     }
 
     if (!task.id) {
-      console.log('Task ID is missing');
       return;
     }
 
@@ -513,7 +568,6 @@ export class TaskListComponent implements OnChanges, OnInit {
 
     this.taskService.deleteTask(this.taskToDelete.id).subscribe({
       next: () => {
-        console.log('Task deleted successfully', this.taskToDelete?.id);
         this.tasks = this.tasks.filter(t => t.id !== this.taskToDelete?.id);
         
         // ダッシュボードデータを取得して更新

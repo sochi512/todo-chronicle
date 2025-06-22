@@ -4,16 +4,16 @@
     <div class="flex space-x-2">
       <button
         (click)="switchToCurrentView()"
-        [class.text-blue-500]="currentView === 'current'"
-        [class.text-gray-500]="currentView !== 'current'"
+        [class.text-blue-500]="_currentView === 'current'"
+        [class.text-gray-500]="_currentView !== 'current'"
         class="px-3 py-1 text-base font-medium hover:text-emerald-500"
       >
         <span id="currentSeasonTitle">シーズン{{ currentSeason?.season_no }}</span>
       </button>
       <button
         (click)="switchToHistoryView()"
-        [class.text-blue-500]="currentView === 'history'"
-        [class.text-gray-500]="currentView !== 'history'"
+        [class.text-blue-500]="_currentView === 'history'"
+        [class.text-gray-500]="_currentView !== 'history'"
         class="px-3 py-1 text-base font-medium hover:text-emerald-500"
       >
         履歴
@@ -22,7 +22,7 @@
   </div>
 
   <!-- 現在のシーズン表示 -->
-  <div *ngIf="currentView === 'current' && currentSeason" class="space-y-6">
+  <div *ngIf="_currentView === 'current' && currentSeason" class="space-y-6">
     <div class="flex items-center justify-between">
       <h3 class="text-lg font-medium text-gray-900">
         シーズン{{ currentSeason.season_no }}
@@ -46,10 +46,10 @@
         <div class="flex items-center">
           <p class="text-gray-600 transition-opacity duration-300">
             <ng-container [ngSwitch]="loadingStep">
-              <ng-container *ngSwitchCase="1">🔮 タスク変換を実行中…</ng-container>
-              <ng-container *ngSwitchCase="2">📜 ストーリー生成中…</ng-container>
-              <ng-container *ngSwitchCase="3">🧠 洞察を出力中…</ng-container>
-              <ng-container *ngSwitchDefault>🔮 タスク変換を実行中…</ng-container>
+              <ng-container *ngSwitchCase="0">🔮 タスク変換を実行中…</ng-container>
+              <ng-container *ngSwitchCase="1">📜 ストーリー生成中…</ng-container>
+              <ng-container *ngSwitchCase="2">🧠 洞察を出力中…</ng-container>
+              <ng-container *ngSwitchDefault>🧠 洞察を出力中…</ng-container>
             </ng-container>
           </p>
         </div>
@@ -63,6 +63,22 @@
         </div>
         <p class="mt-4 text-gray-600 whitespace-pre-line" [innerHTML]="formatStoryContent(story)"></p>
         
+        <div class="mt-4 p-3 rounded-md"
+             [ngClass]="{
+               'bg-blue-50': story.phase !== StoryPhase.KAN,
+               'bg-green-50': story.phase === StoryPhase.KAN
+             }">
+          <p class="text-sm whitespace-pre-line"
+             [ngClass]="{
+               'text-blue-700': story.phase !== StoryPhase.KAN,
+               'text-green-700': story.phase === StoryPhase.KAN
+             }">
+            <span class="font-medium" *ngIf="story.phase !== StoryPhase.KAN">洞察:</span>
+            <span class="font-medium" *ngIf="story.phase === StoryPhase.KAN">🔮 {{ getInsightName(story.insight) }}は語る</span>
+            <span *ngIf="story.phase === StoryPhase.KAN" class="block mt-1">{{ getInsightContent(story.insight) }}</span>
+            <span *ngIf="story.phase !== StoryPhase.KAN">{{ story.insight }}</span>
+          </p>
+        </div>
         <!-- 画像表示部分 -->
         <div *ngIf="currentSeason.current_phase === StoryPhase.KAN && story.phase === StoryPhase.KAN" class="mt-4">
           <div *ngIf="!story.imageUrl" class="w-full aspect-square bg-gray-100 rounded-lg shadow-md flex items-center justify-center">
@@ -77,17 +93,12 @@
           >
         </div>
 
-        <div class="mt-4 p-3 bg-blue-50 rounded-md">
-          <p class="text-sm text-blue-700 whitespace-pre-line">
-            <span class="font-medium">洞察:</span> {{ story.insight }}
-          </p>
-        </div>
       </div>
     </div>
   </div>
 
   <!-- 履歴表示 -->
-  <div *ngIf="currentView === 'history'" class="space-y-4">
+  <div *ngIf="_currentView === 'history'" class="space-y-4">
     <div
       *ngFor="let season of seasons"
       (click)="selectSeason(season)"

@@ -28,6 +28,7 @@
       (taskUpdated)="onTaskUpdated()"
       (seasonSelected)="onSeasonSelected($event)"
       (storyLoading)="onStoryLoading($event)"
+      (storyUpdated)="onStoryUpdated()"
       [isEnabled]="!!dashboardData"
       [isMobile]="false"
       [isStoryLoading]="isStoryLoading"
@@ -42,6 +43,10 @@
       [isEnabled]="!!dashboardData"
       [isLoading]="isStoryLoading"
       [isMobile]="false"
+      [currentView]="storyViewState"
+      [selectedStorySeasonId]="selectedStorySeasonId"
+      (viewChanged)="onStoryViewChanged($event)"
+      (seasonSelected)="onStorySeasonSelected($event)"
     ></app-story>
   </div>
 </div>
@@ -55,6 +60,7 @@
       (taskUpdated)="onTaskUpdated()"
       (seasonSelected)="onSeasonSelected($event)"
       (storyLoading)="onStoryLoading($event)"
+      (storyUpdated)="onStoryUpdated()"
       [isEnabled]="!!dashboardData"
       [isMobile]="true"
       [isStoryLoading]="isStoryLoading"
@@ -69,6 +75,10 @@
       [isEnabled]="!!dashboardData"
       [isLoading]="isStoryLoading"
       [isMobile]="true"
+      [currentView]="storyViewState"
+      [selectedStorySeasonId]="selectedStorySeasonId"
+      (viewChanged)="onStoryViewChanged($event)"
+      (seasonSelected)="onStorySeasonSelected($event)"
     ></app-story>
   </div>
 </div> 
