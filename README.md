@@ -13,7 +13,7 @@
 - デスクトップ版
 ![タスク管理画面](./docs/screenshot-task.png)
 - モバイル版
-<img src="https://github.com/sochi512/todo-chronicle/blob/main/docs/screenshot-task-mobile.png" width="400" />
+<img src="https://github.com/sochi512/todo-chronicle/blob/main/docs/screenshot-task-mobile.png" width="500px" />
 
 ## 💡 技術スタック
 - フロントエンド: Angular 18, Firebase Hosting, TailwindCSS
