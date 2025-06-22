@@ -58,6 +58,7 @@ api/.env
 !tsconfig.app.json
 !tsconfig.spec.json
 !angular.json
+!firebase.json
 
 # キャッシュ
 .pytest_cache/
