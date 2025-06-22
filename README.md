@@ -10,7 +10,10 @@
 - 物語のシーズン最終章でイラストを自動生成する。（生成AI活用）
 
 ## 🖼️ スクリーンショット
+- デスクトップ版
 ![タスク管理画面](./docs/screenshot-task.png)
+- モバイル版
+![タスク管理画面](./docs/screenshot-task-mobile.png)
 
 ## 💡 技術スタック
 - フロントエンド: Angular 18, Firebase Hosting, TailwindCSS
