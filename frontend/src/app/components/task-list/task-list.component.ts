@@ -51,6 +51,8 @@ export class TaskListComponent implements OnChanges, OnInit {
   @Output() seasonSelected = new EventEmitter<string>();
   /** ストーリー読み込み状態の変更イベント */
   @Output() storyLoading = new EventEmitter<boolean>();
+  /** ストーリー更新時のイベント */
+  @Output() storyUpdated = new EventEmitter<void>();
   
   /** モーダルの表示状態 */
   showModal = false;
@@ -197,7 +199,7 @@ export class TaskListComponent implements OnChanges, OnInit {
    * 経験値更新モーダルを開き、完了済みタスクの経験値を獲得します。
    * 経験値獲得後、ストーリーが生成され、シーズン情報が更新されます。
    */
-  openRecordModal() {
+  updateExperience() {
     if (!this.isEnabled || this.isUpdatingExperience) {
       return;
     }
@@ -290,6 +292,9 @@ export class TaskListComponent implements OnChanges, OnInit {
 
         // タスク更新イベントを発火して、親コンポーネントに通知
         this.taskUpdated.emit();
+
+        // ストーリー更新イベントを発火
+        this.storyUpdated.emit();
 
         // デスクトップ表示の場合のみストーリータブに遷移
         if (!this.isMobile) {

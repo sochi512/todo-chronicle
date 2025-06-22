@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { TaskListComponent } from '../../components/task-list/task-list.component';
 import { StoryComponent } from '../../components/story/story.component';
 import { DashboardService } from '../../services/dashboard.service';
-import { Dashboard } from '../../models/types';
+import { Dashboard, StoryPhase } from '../../models/types';
 import { Subscription, takeUntil, filter, switchMap, combineLatest, tap, catchError, of } from 'rxjs';
 import { Subject } from 'rxjs';
 import { RouterModule } from '@angular/router';
@@ -166,7 +166,14 @@ export class HomeComponent implements OnInit, OnDestroy {
    */
   onTaskUpdated() {
     if (!this.dashboardData) return;
-    this.dashboardService.updateDashboardData(this.dashboardData);
+    
+    // ダッシュボードサービスから最新データを取得して更新
+    const updatedData = this.dashboardService.getCurrentDashboardData();
+    if (updatedData) {
+      // 参照を更新してAngularの変更検知を発火させる
+      this.dashboardData = { ...updatedData };
+      this.dashboardService.updateDashboardData(this.dashboardData);
+    }
   }
 
   /**
@@ -183,8 +190,12 @@ export class HomeComponent implements OnInit, OnDestroy {
     // デスクトップ表示の場合のみ、最新シーズン（進行中のシーズン）のIDを取得
     if (!this.isMobile) {
       if (this.dashboardData && this.dashboardData.seasons) {
-        const currentSeason = this.dashboardData.seasons.find(s => s.current_phase !== 4);
+        const currentSeason = this.dashboardData.seasons.find(s => s.current_phase !== StoryPhase.KAN);
         if (currentSeason) {
+          // ストーリータブが選択されていて、現在表示中のシーズンが最新シーズンの場合は処理をスキップ
+          if (this.currentTab === 'stories' && this.selectedSeasonId === currentSeason.id) {
+            return;
+          }
           this.selectedSeasonId = currentSeason.id;
           this.selectedStorySeasonId = undefined;
           this.storyViewState = 'current';
@@ -257,6 +268,31 @@ export class HomeComponent implements OnInit, OnDestroy {
    */
   onStorySeasonSelected(seasonId: string) {
     this.selectedStorySeasonId = seasonId;
+  }
+
+  /**
+   * ストーリーが更新された時の処理を行います。
+   * ダッシュボードデータの参照を更新して、story.component.tsのngOnChangesを発火させます。
+   */
+  onStoryUpdated() {
+    if (!this.dashboardData) return;
+    
+    // ダッシュボードサービスから最新データを取得して更新
+    const updatedData = this.dashboardService.getCurrentDashboardData();
+    if (updatedData) {
+      // 参照を更新してAngularの変更検知を発火させる
+      this.dashboardData = { ...updatedData };
+      this.dashboardService.updateDashboardData(this.dashboardData);
+      
+      // selectedSeasonIdを一時的にundefinedにして再設定することで、ngOnChangesを強制的に発火させる
+      if (this.selectedSeasonId) {
+        const currentSeasonId = this.selectedSeasonId;
+        this.selectedSeasonId = undefined;
+        setTimeout(() => {
+          this.selectedSeasonId = currentSeasonId;
+        }, 0);
+      }
+    }
   }
 
   /**

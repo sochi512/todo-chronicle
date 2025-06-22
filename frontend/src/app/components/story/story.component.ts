@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, SimpleChanges, Output, EventEmitter } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Season, Story, StoryPhase } from '../../models/types';
 import { StoryService } from '../../services/story.service';
@@ -15,15 +15,13 @@ import { StoryService } from '../../services/story.service';
   templateUrl: './story.component.html',
   styleUrls: ['./story.component.scss']
 })
-export class StoryComponent implements OnChanges {
+export class StoryComponent implements OnChanges, OnInit {
   /** シーズン一覧 */
   @Input() seasons: Season[] = [];
   /** コンポーネントの有効/無効状態 */
   @Input() isEnabled = true;
   /** 選択中のシーズンID */
   @Input() selectedSeasonId?: string;
-  /** ストーリー一覧 */
-  @Input() stories: Story[] = [];
   /** ローディング状態 */
   @Input() isLoading = false;
   /** モバイル表示フラグ */
@@ -67,6 +65,43 @@ export class StoryComponent implements OnChanges {
   }
 
   /**
+   * コンポーネントの初期化時に実行されます。
+   * 現在表示中のシーズンのストーリーが未取得の場合は取得します。
+   */
+  ngOnInit() {
+    console.log('StoryComponent ngOnInit:', {
+      currentSeason: this.currentSeason,
+      seasonsLength: this.seasons.length,
+      selectedSeasonId: this.selectedSeasonId,
+      selectedStorySeasonId: this.selectedStorySeasonId
+    });
+
+    // 初期化時に現在表示中のシーズンのストーリーをチェック
+    setTimeout(() => {
+      if (this.currentSeason) {
+        const season = this.currentSeason;
+        console.log('StoryComponent ngOnInit - checking season:', {
+          seasonId: season.id,
+          currentPhase: season.current_phase,
+          storiesCount: season.stories?.length || 0,
+          currentChapter: season.current_chapter
+        });
+        
+        // ストーリーが未取得の場合は取得
+        if (season.current_chapter !== 0 && (!season.stories || season.stories.length === 0)) {
+          console.log('StoryComponent ngOnInit - loading stories for season:', season.id);
+          this.loadStories(season);
+        }
+        // 完了フェーズの場合は画像URLを取得
+        if (season.current_phase === StoryPhase.KAN) {
+          console.log('StoryComponent ngOnInit - loading images for season:', season.id);
+          this.loadStoryImages(season);
+        }
+      }
+    }, 200);
+  }
+
+  /**
    * 入力プロパティの変更を監視し、必要な処理を実行します。
    * @param changes 変更されたプロパティの情報
    */
@@ -92,7 +127,7 @@ export class StoryComponent implements OnChanges {
       }
     }
 
-    if (changes['seasons'] || changes['selectedSeasonId'] || changes['stories']) {
+    if (changes['seasons'] || changes['selectedSeasonId']) {
       // シーズン一覧が空になった場合、選択状態をリセット
       if (!this.seasons.length) {
         this.resetState();
@@ -112,6 +147,28 @@ export class StoryComponent implements OnChanges {
           if (season.current_phase === StoryPhase.KAN) {
             this.loadStoryImages(season);
           }
+        }
+      }
+
+      // seasonsの変更を処理（シーズン情報が更新された場合）
+      if (changes['seasons'] && this.currentSeason) {
+        const season = this.currentSeason;
+        // 完了フェーズの場合は画像URLを取得
+        if (season.current_phase === StoryPhase.KAN) {
+          this.loadStoryImages(season);
+        }
+      }
+
+      // 現在表示中のシーズンのストーリーが未取得の場合の処理
+      if (this.currentSeason) {
+        const season = this.currentSeason;
+        // ストーリーが未取得の場合は取得
+        if (season.current_chapter !== 0 && (!season.stories || season.stories.length === 0)) {
+          this.loadStories(season);
+        }
+        // 完了フェーズの場合は画像URLを取得
+        if (season.current_phase === StoryPhase.KAN) {
+          this.loadStoryImages(season);
         }
       }
     }
@@ -148,7 +205,7 @@ export class StoryComponent implements OnChanges {
       return this.selectedSeason;
     }
     // 5. デフォルト：進行中のシーズンを表示
-    return this.seasons.find(s => s.current_phase !== 4);
+    return this.seasons.find(s => s.current_phase !== StoryPhase.KAN);
   }
 
   /**
@@ -219,21 +276,60 @@ export class StoryComponent implements OnChanges {
   }
 
   /**
+   * 現在表示中のシーズンのストーリー画像を読み込みます。
+   * 外部から呼び出し可能なパブリックメソッドです。
+   */
+  loadStoryImagesForCurrentSeason() {
+    if (this.currentSeason) {
+      this.loadStoryImages(this.currentSeason);
+    }
+  }
+
+  /**
    * 完了フェーズのストーリー画像を読み込みます。
    * 画像取得に失敗した場合は一定間隔でリトライします。
    * @param season 画像を読み込むシーズン
    */
-  private loadStoryImages(season: Season) {
+  loadStoryImages(season: Season) {
+    console.log('loadStoryImages called with season:', {
+      id: season.id,
+      season_no: season.season_no,
+      current_phase: season.current_phase,
+      current_chapter: season.current_chapter,
+      storiesCount: season.stories?.length || 0
+    });
+    
     // シーズンが完了フェーズでない場合は処理をスキップ
-    if (season.current_phase !== StoryPhase.KAN || !season.stories) return;
+    if (season.current_phase !== StoryPhase.KAN || !season.stories) {
+      console.log('loadStoryImages: Skipping - phase not KAN or no stories');
+      return;
+    }
 
     // 完フェーズのストーリーを取得
     const completedStory = season.stories.find(story => story.phase === StoryPhase.KAN);
-    if (!completedStory) return;
+    if (!completedStory) {
+      console.log('loadStoryImages: No completed story found');
+      return;
+    }
+
+    // 既に画像URLが存在する場合は重複して読み込まない
+    if (completedStory.imageUrl) {
+      console.log('loadStoryImages: Image URL already exists, skipping');
+      return;
+    }
+
+    console.log('loadStoryImages: Found completed story:', {
+      id: completedStory.id,
+      chapter_no: completedStory.chapter_no,
+      title: completedStory.title,
+      phase: completedStory.phase
+    });
 
     // 画像URLを取得
+    console.log('completedStory', completedStory);
     this.storyService.getStoryImage(season.id!, completedStory.id!).subscribe({
       next: (response) => {
+        console.log('response', response);
         completedStory.imageUrl = response.url;
         // 成功したらリトライカウントをリセット
         this.imageRetryCount = 0;
