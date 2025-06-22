@@ -19,9 +19,5 @@
 ## 📊 システム構成図
 ![アーキテクチャ図](./docs/architecture.png)
 
-## 🔗 参考リンク
-- [Zenn記事](https://zenn.dev/xxxx)
-- [デモ動画（YouTube）](https://youtube.com/xxxx)
-
 ## 📝 ライセンス
-MIT
+MIT License
