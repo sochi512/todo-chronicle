@@ -144,20 +144,31 @@ export class TaskListComponent implements OnChanges, OnInit {
    * showAllTasksがtrueの場合は全タスク、falseの場合は未完了タスクのみを返します。
    * タスクは以下の順でソートされます：
    * 1. ステータスの昇順（未完了→完了）
-   * 2. 作成日時の降順（新しい順）
+   * 2. 期限日の昇順（undefinedのデータは先頭）
+   * 3. 作成日時の降順（新しい順）
    * @returns {Task[]} 表示対象のタスク一覧
    */
   get displayTasks(): Task[] {
     // 表示モードに応じてタスクをフィルタリング
     const filteredTasks = this.showAllTasks ? this.tasks : this.tasks.filter(task => task.status === 0);
     
-    // ステータスの昇順、作成日時の降順でソート
+    // ステータスの昇順、期限日の昇順、作成日時の降順でソート
     return filteredTasks.sort((a, b) => {
       // まずステータスで比較
       if (a.status !== b.status) {
         return a.status - b.status;
       }
-      // ステータスが同じ場合は作成日時で比較
+      
+      // ステータスが同じ場合は期限日で比較
+      if (a.due_date !== b.due_date) {
+        // undefinedの期限日は先頭に配置
+        if (a.due_date === undefined) return -1;
+        if (b.due_date === undefined) return 1;
+        // 期限日の昇順
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      }
+      
+      // 期限日も同じ場合は作成日時で比較（降順）
       const dateA = new Date(a.created_at).getTime();
       const dateB = new Date(b.created_at).getTime();
       return dateB - dateA;
