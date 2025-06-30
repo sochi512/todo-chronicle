@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Tuple
 import google.cloud.aiplatform as aiplatform
-from datetime import datetime
+from datetime import datetime, timedelta
 from google.cloud import firestore
 from src.models.types import StoryPhase, Task, TaskStatus
 import os
@@ -13,6 +13,7 @@ import asyncio
 import json
 import random
 import logging
+from datetime import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -465,19 +466,72 @@ tasks = {tasks}
                 if task_dict.get('completed_at') is not None:
                     completed_tasks.append(task_dict)
             
+            # 未完了タスクを取得（期限日の昇順、期限日がNoneの場合は作成日時）
+            incomplete_tasks_query = tasks_ref.where(filter=FieldFilter("status", "==", TaskStatus.PENDING))\
+                .order_by('due_date', direction=firestore.Query.ASCENDING)\
+                .order_by('created_at', direction=firestore.Query.ASCENDING)\
+                .limit(30)\
+                .get()
+            incomplete_tasks = []
+            # 日本時間で現在日時を取得
+            jst = timezone(timedelta(hours=9))
+            now = datetime.now(jst)
+            # 年月日のみで比較するため、時刻部分を除去
+            next_day_date = (now + timedelta(days=1)).date()
+            week_ago_date = (now - timedelta(days=7)).date()
+            
+            for task in incomplete_tasks_query:
+                task_dict = task.to_dict()
+                due_date = task_dict.get('due_date')
+                created_at = task_dict.get('created_at')
+                
+                # due_date, created_atがNoneの場合も考慮
+                due_date_dt = None
+                created_at_dt = None
+                if due_date:
+                    # DatetimeWithNanosecondsオブジェクトの場合は直接使用
+                    due_date_dt = due_date.date()
+                if created_at:
+                    # DatetimeWithNanosecondsオブジェクトの場合は直接使用
+                    created_at_dt = created_at.date()
+                
+                # 条件判定（年月日のみで比較）
+                is_due_past_next_day = due_date_dt and due_date_dt <= next_day_date
+                is_created_before_week_ago = created_at_dt and created_at_dt <= week_ago_date
+                logger.debug(f"due_date_dt: {due_date_dt.strftime('%Y-%m-%d') if due_date_dt else None}, created_at_dt: {created_at_dt.strftime('%Y-%m-%d')}")
+                if is_due_past_next_day or is_created_before_week_ago:
+                    incomplete_task_for_analysis = {
+                        'title': task_dict.get('title', ''),
+                        'category': task_dict.get('category'),
+                        'due_date': due_date.strftime("%Y-%m-%d") if due_date else None,
+                        'created_at': created_at.strftime("%Y-%m-%d") if created_at else None
+                    }
+                    incomplete_tasks.append(incomplete_task_for_analysis)
+            # 最大10件に制限
+            incomplete_tasks = incomplete_tasks[:3]
+            
             if not completed_tasks:
                 logger.info(f"行動分析対象の完了タスクがありません: user_id={user_id}, season_id={season_id}")
                 return None
             
-            # 行動分析を実行
-            analysis_result = await self.behavior_analyzer.analyze_behavior(completed_tasks)
+            # 行動分析を実行（完了タスクと未完了タスクの両方を含める）
+            logger.debug(f"completed_tasks: {completed_tasks}")
+            logger.debug(f"incomplete_tasks: {incomplete_tasks}")
+            analysis_result = await self.behavior_analyzer.analyze_behavior(completed_tasks, incomplete_tasks)
             
             if analysis_result and analysis_result.get('keywords'):
+                logger.debug(f"analysis_result: {analysis_result}")
                 insight = analysis_result.get('title', "") + analysis_result.get('name', "") + "\n" + analysis_result.get('insight', "")
 
+                # 提案結果を追加
+                suggest = analysis_result.get('suggest', "")
+                if suggest:
+                    insight = insight + "\n" + suggest
+                
                 keywords = analysis_result.get('keywords', [])
                 # キーワードを「／」で連結
                 insight = insight + "\n" + "／".join(keywords)
+                
                 logger.debug(f"行動分析結果: {insight}")
                 return insight
             else:
